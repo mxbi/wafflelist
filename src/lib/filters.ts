@@ -15,26 +15,30 @@ function isSnoozed(t: Todo): boolean {
 	return !!t.snoozed_until && t.snoozed_until > today();
 }
 
+function sortActive(a: Todo, b: Todo): number {
+	return a.sort_order - b.sort_order;
+}
+
 export function filterTodos(todos: Todo[], view: string, listId?: string): Todo[] {
 	switch (view) {
 		case 'inbox':
 			return todos.filter(t => isActive(t) && !t.list_id && isNotSnoozed(t))
-				.sort((a, b) => a.sort_order - b.sort_order);
+				.sort(sortActive);
 		case 'today':
 			return todos.filter(t => isActive(t) && t.due_date === today() && isNotSnoozed(t))
-				.sort((a, b) => a.sort_order - b.sort_order);
+				.sort(sortActive);
 		case 'week':
 			return todos.filter(t => isActive(t) && t.due_date && t.due_date >= today() && t.due_date <= weekEnd() && isNotSnoozed(t))
-				.sort((a, b) => a.sort_order - b.sort_order);
+				.sort(sortActive);
 		case 'all':
 			return todos.filter(t => isActive(t) && isNotSnoozed(t))
-				.sort((a, b) => a.sort_order - b.sort_order);
+				.sort(sortActive);
 		case 'snoozed':
 			return todos.filter(t => isActive(t) && isSnoozed(t))
 				.sort((a, b) => (a.snoozed_until ?? '').localeCompare(b.snoozed_until ?? ''));
 		case 'list':
 			return todos.filter(t => isActive(t) && t.list_id === listId && isNotSnoozed(t))
-				.sort((a, b) => a.sort_order - b.sort_order);
+				.sort(sortActive);
 		default:
 			return todos;
 	}

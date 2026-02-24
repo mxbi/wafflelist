@@ -9,7 +9,7 @@ export const GET: RequestHandler = async ({ url }) => {
 	if (!userId) return json([], { status: 400 });
 
 	const rows = db.prepare(
-		'SELECT id, encrypted_blob, sort_order, created_at FROM todos WHERE user_id = ? ORDER BY sort_order'
+		'SELECT id, encrypted_blob, created_at FROM todos WHERE user_id = ?'
 	).all(userId);
 	return json(rows);
 };
@@ -20,18 +20,13 @@ export const POST: RequestHandler = async ({ request }) => {
 	const userId = body.user_id;
 	if (!userId || !body.encrypted_blob) return json({ error: 'Missing fields' }, { status: 400 });
 
-	const maxOrder = db.prepare(
-		'SELECT COALESCE(MAX(sort_order), 0) as max_order FROM todos WHERE user_id = ?'
-	).get(userId) as { max_order: number };
-
 	const created_at = Date.now();
-	const sort_order = maxOrder.max_order + 1;
 
 	db.prepare(
-		'INSERT INTO todos (id, user_id, encrypted_blob, sort_order, created_at) VALUES (?, ?, ?, ?, ?)'
-	).run(id, userId, body.encrypted_blob, sort_order, created_at);
+		'INSERT INTO todos (id, user_id, encrypted_blob, created_at) VALUES (?, ?, ?, ?)'
+	).run(id, userId, body.encrypted_blob, created_at);
 
-	const todo = { id, user_id: userId, encrypted_blob: body.encrypted_blob, sort_order, created_at };
+	const todo = { id, user_id: userId, encrypted_blob: body.encrypted_blob, created_at };
 	broadcast('todo_created', { todo });
 	return json(todo, { status: 201 });
 };

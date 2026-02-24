@@ -31,7 +31,6 @@ CREATE TABLE IF NOT EXISTS todos (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL REFERENCES users(id),
   encrypted_blob TEXT NOT NULL,
-  sort_order REAL NOT NULL,
   created_at INTEGER NOT NULL
 );
 `);

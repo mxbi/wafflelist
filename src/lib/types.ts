@@ -33,7 +33,6 @@ export interface EncryptedTodo {
 	id: string;
 	user_id: string;
 	encrypted_blob: string;
-	sort_order: number;
 	created_at: number;
 }
 

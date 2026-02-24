@@ -5,8 +5,15 @@
 
 	interface Props {
 		todo: Todo;
+		draggable?: boolean;
+		ondragstart?: (e: DragEvent) => void;
+		ondragover?: (e: DragEvent) => void;
+		ondragleave?: () => void;
+		ondrop?: (e: DragEvent) => void;
+		ondragend?: () => void;
+		dragOverPosition?: 'above' | 'below' | null;
 	}
-	let { todo }: Props = $props();
+	let { todo, draggable = false, ondragstart, ondragover, ondragleave, ondrop, ondragend, dragOverPosition = null }: Props = $props();
 
 	let editing = $state(false);
 	let editTitle = $state('');
@@ -73,7 +80,15 @@
 	class="todo-item"
 	class:completed={!!todo.completed_at}
 	class:selected={isSelected}
+	class:drag-over-above={dragOverPosition === 'above'}
+	class:drag-over-below={dragOverPosition === 'below'}
 	oncontextmenu={handleContextMenu}
+	draggable={draggable ? 'true' : undefined}
+	{ondragstart}
+	{ondragover}
+	{ondragleave}
+	{ondrop}
+	{ondragend}
 >
 	<button class="checkbox" onclick={toggleComplete} aria-label={todo.completed_at ? 'Mark incomplete' : 'Mark complete'}>
 		{#if todo.completed_at}
@@ -142,9 +157,23 @@
 	}
 	.todo-item:hover { background: #f8f9fa; }
 	.todo-item.selected { background: #e8f0fe; }
+	.todo-item.drag-over-above {
+		border-top: 2px solid #2B579A;
+		padding-top: 8px;
+	}
+	.todo-item.drag-over-below {
+		border-bottom: 2px solid #2B579A;
+		padding-bottom: 8px;
+	}
 	.todo-item.completed .title {
 		text-decoration: line-through;
 		color: #999;
+	}
+	.todo-item[draggable="true"] {
+		cursor: grab;
+	}
+	.todo-item[draggable="true"]:active {
+		cursor: grabbing;
 	}
 
 	.checkbox {

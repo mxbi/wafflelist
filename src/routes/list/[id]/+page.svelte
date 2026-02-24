@@ -14,4 +14,4 @@
 	}
 </script>
 
-<TodoList title={listName} listId={listId} filteredTodos={filtered} onrename={handleRename} />
+<TodoList title={listName} listId={listId} filteredTodos={filtered} onrename={handleRename} reorderable={true} />

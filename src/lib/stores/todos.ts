@@ -20,8 +20,8 @@ async function api(path: string, opts?: RequestInit) {
 }
 
 async function decryptTodo(key: CryptoKey, row: EncryptedTodo): Promise<Todo> {
-	const plain = await decrypt(key, row.encrypted_blob) as Omit<Todo, 'id' | 'sort_order' | 'created_at'>;
-	return { ...plain, id: row.id, sort_order: row.sort_order, created_at: row.created_at } as Todo;
+	const plain = await decrypt(key, row.encrypted_blob) as Omit<Todo, 'id' | 'created_at'>;
+	return { ...plain, id: row.id, sort_order: (plain as any).sort_order ?? 0, created_at: row.created_at } as Todo;
 }
 
 async function decryptList(key: CryptoKey, row: EncryptedList): Promise<List> {
@@ -38,7 +38,13 @@ export async function loadTodos() {
 
 export async function createTodo(todo: { title: string; list_id?: string | null; due_date?: string | null }) {
 	const { userId, encryptionKey } = getAuth();
-	const plainData: Omit<Todo, 'id' | 'sort_order' | 'created_at'> = {
+
+	// Compute sort_order: new todos go to top (min - 1)
+	const currentTodos = get(todos);
+	const sortOrders = currentTodos.filter(t => !t.completed_at).map(t => t.sort_order);
+	const sort_order = sortOrders.length > 0 ? Math.min(...sortOrders) - 1 : 0;
+
+	const plainData: Omit<Todo, 'id' | 'created_at'> = {
 		user_id: userId,
 		list_id: todo.list_id ?? null,
 		title: todo.title,
@@ -46,15 +52,15 @@ export async function createTodo(todo: { title: string; list_id?: string | null;
 		due_date: todo.due_date ?? null,
 		reminder_date: null,
 		snoozed_until: null,
-		completed_at: null
+		completed_at: null,
+		sort_order
 	};
 	const encrypted_blob = await encrypt(encryptionKey, plainData);
 	const row: EncryptedTodo = await api('/api/todos', {
 		method: 'POST',
 		body: JSON.stringify({ user_id: userId, encrypted_blob })
 	});
-	// Use the plainData we already have instead of decrypting the blob again
-	const newTodo: Todo = { ...plainData, id: row.id, sort_order: row.sort_order, created_at: row.created_at };
+	const newTodo: Todo = { ...plainData, id: row.id, created_at: row.created_at };
 	todos.update(t => {
 		if (t.some(existing => existing.id === newTodo.id)) return t;
 		return [...t, newTodo];
@@ -68,17 +74,14 @@ export async function updateTodo(id: string, fields: Partial<Todo>) {
 	if (!current) throw new Error('Todo not found');
 
 	const updated = { ...current, ...fields };
-	const { id: _id, sort_order, created_at, ...plainFields } = updated;
+	const { id: _id, created_at, ...plainFields } = updated;
 	const encrypted_blob = await encrypt(encryptionKey, plainFields);
-
-	const body: Record<string, unknown> = { user_id: userId, encrypted_blob };
-	if ('sort_order' in fields) body.sort_order = fields.sort_order;
 
 	const row: EncryptedTodo = await api(`/api/todos/${id}`, {
 		method: 'PATCH',
-		body: JSON.stringify(body)
+		body: JSON.stringify({ user_id: userId, encrypted_blob })
 	});
-	const finalTodo: Todo = { ...updated, sort_order: row.sort_order, created_at: row.created_at };
+	const finalTodo: Todo = { ...updated, created_at: row.created_at };
 	todos.update(t => t.map(todo => todo.id === id ? finalTodo : todo));
 	return finalTodo;
 }

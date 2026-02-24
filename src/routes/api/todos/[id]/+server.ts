@@ -11,24 +11,11 @@ export const PATCH: RequestHandler = async ({ params, request }) => {
 	const existing = db.prepare('SELECT id FROM todos WHERE id = ? AND user_id = ?').get(params.id, userId);
 	if (!existing) throw error(404, 'Todo not found');
 
-	const fields: string[] = [];
-	const values: unknown[] = [];
+	if (body.encrypted_blob === undefined) throw error(400, 'No fields to update');
 
-	if (body.encrypted_blob !== undefined) {
-		fields.push('encrypted_blob = ?');
-		values.push(body.encrypted_blob);
-	}
-	if (body.sort_order !== undefined) {
-		fields.push('sort_order = ?');
-		values.push(body.sort_order);
-	}
+	db.prepare('UPDATE todos SET encrypted_blob = ? WHERE id = ?').run(body.encrypted_blob, params.id);
 
-	if (fields.length === 0) throw error(400, 'No fields to update');
-
-	values.push(params.id);
-	db.prepare(`UPDATE todos SET ${fields.join(', ')} WHERE id = ?`).run(...values);
-
-	const todo = db.prepare('SELECT id, encrypted_blob, sort_order, created_at FROM todos WHERE id = ?').get(params.id);
+	const todo = db.prepare('SELECT id, encrypted_blob, created_at FROM todos WHERE id = ?').get(params.id);
 	broadcast('todo_updated', { todo });
 	return json(todo);
 };

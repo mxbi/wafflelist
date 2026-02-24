@@ -6,4 +6,4 @@
 	const filtered = $derived(filterTodos($todos, 'inbox'));
 </script>
 
-<TodoList title="Inbox" filteredTodos={filtered} />
+<TodoList title="Inbox" filteredTodos={filtered} reorderable={true} />
