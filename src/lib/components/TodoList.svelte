@@ -9,8 +9,26 @@
 		title: string;
 		listId?: string | null;
 		filteredTodos?: Todo[];
+		onrename?: (name: string) => void;
 	}
-	let { title, listId = null, filteredTodos }: Props = $props();
+	let { title, listId = null, filteredTodos, onrename }: Props = $props();
+
+	let editing = $state(false);
+	let editName = $state('');
+
+	function startEdit() {
+		if (!onrename) return;
+		editName = title;
+		editing = true;
+	}
+
+	function saveEdit() {
+		const name = editName.trim();
+		if (name && name !== title) {
+			onrename?.(name);
+		}
+		editing = false;
+	}
 
 	let showCompleted = $state(false);
 
@@ -43,7 +61,19 @@
 <div class="todo-list">
 	<div class="list-header">
 		<button class="mobile-back" onclick={() => mobileView.set('sidebar')}>&larr;</button>
-		<h1>{title}</h1>
+		{#if editing}
+			<!-- svelte-ignore a11y_autofocus -->
+			<input
+				class="title-edit"
+				bind:value={editName}
+				onblur={saveEdit}
+				onkeydown={(e) => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') editing = false; }}
+				autofocus
+			/>
+		{:else}
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
+			<h1 ondblclick={startEdit} class:editable={!!onrename}>{title}</h1>
+		{/if}
 		<BackgroundPicker />
 	</div>
 
@@ -110,6 +140,22 @@
 		font-weight: 600;
 		color: white;
 		text-shadow: 0 1px 3px rgba(0,0,0,0.2);
+	}
+	h1.editable {
+		cursor: text;
+	}
+	.title-edit {
+		font-size: 1.5rem;
+		font-weight: 600;
+		color: white;
+		text-shadow: 0 1px 3px rgba(0,0,0,0.2);
+		background: rgba(255,255,255,0.2);
+		border: 1px solid rgba(255,255,255,0.5);
+		border-radius: 4px;
+		padding: 2px 6px;
+		margin: -3px -7px;
+		outline: none;
+		font-family: inherit;
 	}
 	.list-content {
 		flex: 1;

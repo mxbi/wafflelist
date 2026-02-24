@@ -9,62 +9,9 @@
 	const listName = $derived(currentList?.name ?? 'List');
 	const filtered = $derived(filterTodos($todos, 'list', listId));
 
-	let editing = $state(false);
-	let editName = $state('');
-
-	function startEdit() {
-		editName = listName;
-		editing = true;
-	}
-
-	function saveEdit() {
-		const name = editName.trim();
-		if (name && name !== listName) {
-			updateList(listId, { name });
-		}
-		editing = false;
+	function handleRename(name: string) {
+		updateList(listId, { name });
 	}
 </script>
 
-{#if editing}
-	<div class="edit-header">
-		<!-- svelte-ignore a11y_autofocus -->
-		<input
-			bind:value={editName}
-			onblur={saveEdit}
-			onkeydown={(e) => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') editing = false; }}
-			autofocus
-		/>
-	</div>
-{/if}
-
-<TodoList title={listName} listId={listId} filteredTodos={filtered} />
-
-{#if !editing}
-	<!-- svelte-ignore a11y_no_static_element_interactions -->
-	<!-- svelte-ignore a11y_click_events_have_key_events -->
-	<div class="rename-hint" ondblclick={startEdit}></div>
-{/if}
-
-<style>
-	.edit-header {
-		padding: 20px 16px 0;
-	}
-	.edit-header input {
-		font-size: 1.5rem;
-		font-weight: 600;
-		border: 1px solid #2B579A;
-		border-radius: 4px;
-		padding: 4px 8px;
-		outline: none;
-		width: 300px;
-	}
-	.rename-hint {
-		position: absolute;
-		top: 20px;
-		left: 276px;
-		width: 300px;
-		height: 36px;
-		cursor: text;
-	}
-</style>
+<TodoList title={listName} listId={listId} filteredTodos={filtered} onrename={handleRename} />
