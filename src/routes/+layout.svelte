@@ -1,10 +1,11 @@
 <script lang="ts">
 	import Sidebar from '$lib/components/Sidebar.svelte';
 	import DetailSidebar from '$lib/components/DetailSidebar.svelte';
-	import { loadLists, loadCounts, setupSync, mobileView } from '$lib/stores/todos';
+	import Login from '$lib/components/Login.svelte';
+	import { loadLists, loadTodos, setupSync, mobileView } from '$lib/stores/todos';
+	import { authState, tryRestore } from '$lib/stores/auth';
 	import { background } from '$lib/stores/settings';
 	import { onMount } from 'svelte';
-	import { page } from '$app/stores';
 	import type { Snippet } from 'svelte';
 
 	interface Props {
@@ -18,21 +19,36 @@
 			: `background: ${$background};`
 	);
 
-	onMount(() => {
-		loadLists();
-		loadCounts();
-		const cleanup = setupSync();
-		return cleanup;
+	let ready = $state(false);
+
+	onMount(async () => {
+		await tryRestore();
+		ready = true;
+	});
+
+	$effect(() => {
+		if ($authState.status === 'unlocked') {
+			loadLists();
+			loadTodos();
+			const cleanup = setupSync();
+			return cleanup;
+		}
 	});
 </script>
 
-<div class="app-layout" data-mobile-view={$mobileView}>
-	<Sidebar />
-	<main style={bgStyle}>
-		{@render children()}
-	</main>
-	<DetailSidebar />
-</div>
+{#if !ready}
+	<!-- loading -->
+{:else if $authState.status === 'locked'}
+	<Login />
+{:else}
+	<div class="app-layout" data-mobile-view={$mobileView}>
+		<Sidebar />
+		<main style={bgStyle}>
+			{@render children()}
+		</main>
+		<DetailSidebar />
+	</div>
+{/if}
 
 <style>
 	:global(*) {

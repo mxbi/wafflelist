@@ -1,5 +1,4 @@
 import Database from 'better-sqlite3';
-import { v4 as uuid } from 'uuid';
 import path from 'path';
 import fs from 'fs';
 
@@ -14,7 +13,7 @@ db.pragma('foreign_keys = ON');
 db.exec(`
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
-  username TEXT UNIQUE NOT NULL,
+  username TEXT NOT NULL,
   password_hash TEXT NOT NULL,
   encryption_public_key TEXT,
   created_at INTEGER NOT NULL
@@ -23,8 +22,7 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS lists (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL REFERENCES users(id),
-  name TEXT NOT NULL,
-  icon TEXT,
+  encrypted_blob TEXT NOT NULL,
   sort_order REAL NOT NULL,
   created_at INTEGER NOT NULL
 );
@@ -32,28 +30,10 @@ CREATE TABLE IF NOT EXISTS lists (
 CREATE TABLE IF NOT EXISTS todos (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL REFERENCES users(id),
-  list_id TEXT REFERENCES lists(id) ON DELETE SET NULL,
-  title TEXT NOT NULL,
-  notes TEXT,
-  due_date TEXT,
-  reminder_date TEXT,
-  snoozed_until TEXT,
-  completed_at TEXT,
+  encrypted_blob TEXT NOT NULL,
   sort_order REAL NOT NULL,
   created_at INTEGER NOT NULL
 );
 `);
 
-// Seed default user if none exists
-const DEFAULT_USER_ID = 'default-user';
-const existing = db.prepare('SELECT id FROM users WHERE id = ?').get(DEFAULT_USER_ID);
-if (!existing) {
-	db.prepare('INSERT INTO users (id, username, password_hash, created_at) VALUES (?, ?, ?, ?)').run(
-		DEFAULT_USER_ID,
-		'default',
-		'not-implemented',
-		Date.now()
-	);
-}
-
-export { db, DEFAULT_USER_ID };
+export { db };

@@ -6,8 +6,12 @@
 	import { formatDateGroupLabel } from '$lib/dates';
 	import type { Todo } from '$lib/types';
 
+	import { filterTodos } from '$lib/filters';
+
+	const weekTodos = $derived(filterTodos($todos, 'week'));
+
 	const activeTodos = $derived.by(() => {
-		let items = $todos.filter((t) => !t.completed_at);
+		let items = weekTodos;
 		const q = $searchQuery.toLowerCase().trim();
 		if (q) items = items.filter((t) => t.title.toLowerCase().includes(q) || t.notes?.toLowerCase().includes(q));
 		return items;

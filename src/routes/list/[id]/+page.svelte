@@ -1,28 +1,16 @@
 <script lang="ts">
 	import TodoList from '$lib/components/TodoList.svelte';
-	import { loadTodos, lists, updateList, currentReloadFn } from '$lib/stores/todos';
+	import { lists, todos, updateList } from '$lib/stores/todos';
+	import { filterTodos } from '$lib/filters';
 	import { page } from '$app/stores';
-	import { onMount } from 'svelte';
 
 	const listId = $derived($page.params.id);
 	const currentList = $derived($lists.find((l) => l.id === listId));
 	const listName = $derived(currentList?.name ?? 'List');
+	const filtered = $derived(filterTodos($todos, 'list', listId));
 
 	let editing = $state(false);
 	let editName = $state('');
-
-	function reload() { loadTodos({ list_id: listId }); }
-
-	$effect(() => {
-		// Reload when listId changes
-		listId;
-		reload();
-	});
-
-	onMount(() => {
-		currentReloadFn.set(reload);
-		return () => currentReloadFn.set(null);
-	});
 
 	function startEdit() {
 		editName = listName;
@@ -50,7 +38,7 @@
 	</div>
 {/if}
 
-<TodoList title={listName} listId={listId} />
+<TodoList title={listName} listId={listId} filteredTodos={filtered} />
 
 {#if !editing}
 	<!-- svelte-ignore a11y_no_static_element_interactions -->

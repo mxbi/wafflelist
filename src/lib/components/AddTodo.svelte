@@ -12,9 +12,13 @@
 	async function handleSubmit() {
 		const t = title.trim();
 		if (!t) return;
-		await createTodo({ title: t, list_id: listId });
 		title = '';
 		inputEl?.focus();
+		try {
+			await createTodo({ title: t, list_id: listId });
+		} catch (e) {
+			console.error('Failed to create todo:', e);
+		}
 	}
 
 	function handleKeydown(e: KeyboardEvent) {

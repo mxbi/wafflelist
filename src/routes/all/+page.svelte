@@ -1,14 +1,9 @@
 <script lang="ts">
 	import TodoList from '$lib/components/TodoList.svelte';
-	import { loadTodos, currentReloadFn } from '$lib/stores/todos';
-	import { onMount } from 'svelte';
+	import { todos } from '$lib/stores/todos';
+	import { filterTodos } from '$lib/filters';
 
-	function reload() { loadTodos({ view: 'all' }); }
-	onMount(() => {
-		reload();
-		currentReloadFn.set(reload);
-		return () => currentReloadFn.set(null);
-	});
+	const filtered = $derived(filterTodos($todos, 'all'));
 </script>
 
-<TodoList title="All To-Dos" />
+<TodoList title="All To-Dos" filteredTodos={filtered} />

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { lists, createList, deleteList, searchQuery, counts, mobileView } from '$lib/stores/todos';
+	import { logout } from '$lib/stores/auth';
 	import { page } from '$app/stores';
 	import type { List } from '$lib/types';
 
@@ -116,6 +117,13 @@
 			<span>New List</span>
 		</button>
 	{/if}
+
+	<div class="sidebar-footer">
+		<button class="logout-btn" onclick={logout}>
+			<span class="nav-icon">🔒</span>
+			<span>Lock / Logout</span>
+		</button>
+	</div>
 </aside>
 
 <style>
@@ -234,4 +242,24 @@
 		box-sizing: border-box;
 	}
 	.new-list-input input::placeholder { color: #999; }
+
+	.sidebar-footer {
+		margin-top: auto;
+		border-top: 1px solid #e8e8e8;
+		padding: 8px;
+	}
+	.logout-btn {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		padding: 8px 16px;
+		width: 100%;
+		background: none;
+		border: none;
+		color: #999;
+		cursor: pointer;
+		font-size: 0.9rem;
+		border-radius: 4px;
+	}
+	.logout-btn:hover { background: #f0f0f0; color: #333; }
 </style>

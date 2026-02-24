@@ -8,20 +8,32 @@
 	interface Props {
 		title: string;
 		listId?: string | null;
+		filteredTodos?: Todo[];
 	}
-	let { title, listId = null }: Props = $props();
+	let { title, listId = null, filteredTodos }: Props = $props();
 
 	let showCompleted = $state(false);
 
+	const baseTodos = $derived(filteredTodos ?? $todos);
+
 	const activeTodos = $derived.by(() => {
-		let items = $todos.filter((t) => !t.completed_at);
+		let items = baseTodos.filter((t) => !t.completed_at);
 		const q = $searchQuery.toLowerCase().trim();
 		if (q) items = items.filter((t) => t.title.toLowerCase().includes(q) || t.notes?.toLowerCase().includes(q));
 		return items;
 	});
 
 	const completedTodos = $derived.by(() => {
-		let items = $todos.filter((t) => !!t.completed_at);
+		let items = $todos.filter((t) => {
+			if (!t.completed_at) return false;
+			if (listId) return t.list_id === listId;
+			if (listId === null && filteredTodos) {
+				// For smart views, match the same criteria but for completed items
+				// Inbox: no list. Others: show all completed.
+				if (title === 'Inbox') return !t.list_id;
+			}
+			return true;
+		});
 		const q = $searchQuery.toLowerCase().trim();
 		if (q) items = items.filter((t) => t.title.toLowerCase().includes(q) || t.notes?.toLowerCase().includes(q));
 		return items;
