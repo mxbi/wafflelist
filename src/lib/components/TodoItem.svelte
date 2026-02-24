@@ -82,6 +82,7 @@
 	class:selected={isSelected}
 	class:drag-over-above={dragOverPosition === 'above'}
 	class:drag-over-below={dragOverPosition === 'below'}
+	onclick={selectTodo}
 	oncontextmenu={handleContextMenu}
 	draggable={draggable ? 'true' : undefined}
 	{ondragstart}
@@ -90,7 +91,7 @@
 	{ondrop}
 	{ondragend}
 >
-	<button class="checkbox" onclick={toggleComplete} aria-label={todo.completed_at ? 'Mark incomplete' : 'Mark complete'}>
+	<button class="checkbox" onclick={(e) => { e.stopPropagation(); toggleComplete(); }} aria-label={todo.completed_at ? 'Mark incomplete' : 'Mark complete'}>
 		{#if todo.completed_at}
 			<svg width="18" height="18" viewBox="0 0 18 18"><rect x="1" y="1" width="16" height="16" rx="4" fill="#2B579A" stroke="#2B579A" stroke-width="1.5"/><path d="M5 9l3 3 5-5" stroke="white" stroke-width="2" fill="none"/></svg>
 		{:else}
@@ -98,7 +99,7 @@
 		{/if}
 	</button>
 
-	<div class="todo-content" onclick={selectTodo}>
+	<div class="todo-content">
 		{#if editing}
 			<!-- svelte-ignore a11y_autofocus -->
 			<input
@@ -123,7 +124,7 @@
 		</span>
 	{/if}
 
-	<button class="delete-btn" onclick={() => deleteTodo(todo.id)} title="Delete">&times;</button>
+	<button class="delete-btn" onclick={(e) => { e.stopPropagation(); deleteTodo(todo.id); }} title="Delete">&times;</button>
 
 	{#if showContextMenu}
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -151,6 +152,7 @@
 		position: relative;
 		transition: background 0.1s;
 		background: white;
+		cursor: pointer;
 		border-radius: 8px;
 		box-shadow: 0 1px 4px rgba(0,0,0,0.08);
 		margin-bottom: 2px;
@@ -168,9 +170,6 @@
 	.todo-item.completed .title {
 		text-decoration: line-through;
 		color: #999;
-	}
-	.todo-item[draggable="true"] {
-		cursor: grab;
 	}
 	.todo-item[draggable="true"]:active {
 		cursor: grabbing;
@@ -190,7 +189,6 @@
 		display: flex;
 		align-items: center;
 		gap: 8px;
-		cursor: pointer;
 		min-width: 0;
 	}
 	.title {

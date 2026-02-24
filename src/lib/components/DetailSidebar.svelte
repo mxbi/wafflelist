@@ -55,6 +55,20 @@
 		});
 	}
 
+	const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+	function daysFromNow(n: number): string {
+		const d = new Date();
+		d.setDate(d.getDate() + n);
+		return d.toISOString().split('T')[0];
+	}
+
+	function dayLabel(n: number): string {
+		const d = new Date();
+		d.setDate(d.getDate() + n);
+		return dayNames[d.getDay()];
+	}
+
 	function handleTitleKeydown(e: KeyboardEvent) {
 		if (e.key === 'Enter') {
 			e.preventDefault();
@@ -99,6 +113,13 @@
 
 			<div class="detail-section">
 				<label class="section-label">Due Date</label>
+				<div class="quick-date-buttons">
+					<button class="quick-date-btn" onclick={() => { editDueDate = daysFromNow(0); save(); }}>Today</button>
+					<button class="quick-date-btn" onclick={() => { editDueDate = daysFromNow(1); save(); }}>Tomorrow</button>
+					<button class="quick-date-btn" onclick={() => { editDueDate = daysFromNow(2); save(); }}>{dayLabel(2)}</button>
+					<button class="quick-date-btn" onclick={() => { editDueDate = daysFromNow(3); save(); }}>{dayLabel(3)}</button>
+					<button class="quick-date-btn quick-date-clear" onclick={() => { editDueDate = ''; save(); }}>&times;</button>
+				</div>
 				<input class="field-input" type="date" bind:value={editDueDate} onchange={save} />
 			</div>
 
@@ -221,6 +242,36 @@
 
 	select.field-input {
 		cursor: pointer;
+	}
+
+	.quick-date-buttons {
+		display: flex;
+		gap: 6px;
+		margin-bottom: 6px;
+	}
+	.quick-date-btn {
+		padding: 4px 12px;
+		font-size: 0.8rem;
+		font-family: inherit;
+		border: 1px solid #ddd;
+		border-radius: 6px;
+		background: white;
+		color: #555;
+		cursor: pointer;
+	}
+	.quick-date-btn:hover {
+		background: #e8f0fe;
+		border-color: #2B579A;
+		color: #2B579A;
+	}
+	.quick-date-clear {
+		margin-left: auto;
+		color: #999;
+	}
+	.quick-date-clear:hover {
+		background: #fde8e8;
+		border-color: #e74c3c;
+		color: #e74c3c;
 	}
 
 	.notes-input {

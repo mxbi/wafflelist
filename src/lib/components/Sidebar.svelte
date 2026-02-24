@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { lists, createList, deleteList, searchQuery, counts, mobileView } from '$lib/stores/todos';
+	import { lists, createList, deleteList, searchQuery, counts, mobileView, selectedTodoId } from '$lib/stores/todos';
 	import { logout } from '$lib/stores/auth';
 	import { page } from '$app/stores';
 	import type { List } from '$lib/types';
@@ -72,7 +72,7 @@
 
 	<nav class="smart-views">
 		{#each smartViews as view}
-			<a href={view.path} class="nav-item" class:active={isActive(view.path)} onclick={() => mobileView.set('list')}>
+			<a href={view.path} class="nav-item" class:active={isActive(view.path)} onclick={() => { selectedTodoId.set(null); mobileView.set('list'); }}>
 				<span class="nav-icon">{view.icon}</span>
 				<span class="nav-label">{view.label}</span>
 				{#if getViewCount(view.path) > 0}
@@ -90,7 +90,7 @@
 
 	<nav class="lists">
 		{#each $lists as list (list.id)}
-			<a href="/list/{list.id}" class="nav-item" class:active={isActive(`/list/${list.id}`)} onclick={() => mobileView.set('list')}>
+			<a href="/list/{list.id}" class="nav-item" class:active={isActive(`/list/${list.id}`)} onclick={() => { selectedTodoId.set(null); mobileView.set('list'); }}>
 				<span class="nav-icon">{list.icon || '📋'}</span>
 				<span class="list-name">{list.name}</span>
 				{#if ($counts.lists[list.id] ?? 0) > 0}

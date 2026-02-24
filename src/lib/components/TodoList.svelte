@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { todos, searchQuery, mobileView, updateTodo } from '$lib/stores/todos';
+	import { todos, searchQuery, mobileView, selectedTodoId, updateTodo } from '$lib/stores/todos';
 	import TodoItem from './TodoItem.svelte';
 	import AddTodo from './AddTodo.svelte';
 	import BackgroundPicker from './BackgroundPicker.svelte';
@@ -171,7 +171,9 @@
 		<BackgroundPicker />
 	</div>
 
-	<div class="list-content">
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<!-- svelte-ignore a11y_click_events_have_key_events -->
+	<div class="list-content" onclick={(e) => { if (e.target === e.currentTarget) selectedTodoId.set(null); }}>
 		<AddTodo {listId} />
 
 		<div class="items-wrapper">
@@ -283,6 +285,7 @@
 	.list-content {
 		flex: 1;
 		padding: 0 24px 24px;
+		min-height: 0;
 	}
 	.empty {
 		padding: 40px 16px;
