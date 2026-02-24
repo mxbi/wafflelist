@@ -33,13 +33,12 @@ export interface EncryptedTodo {
 	id: string;
 	user_id: string;
 	encrypted_blob: string;
-	created_at: number;
+	updated_at: number;
 }
 
 export interface EncryptedList {
 	id: string;
 	user_id: string;
 	encrypted_blob: string;
-	sort_order: number;
-	created_at: number;
+	updated_at: number;
 }

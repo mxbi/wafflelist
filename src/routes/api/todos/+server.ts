@@ -8,8 +8,16 @@ export const GET: RequestHandler = async ({ url }) => {
 	const userId = url.searchParams.get('user_id');
 	if (!userId) return json([], { status: 400 });
 
+	const since = url.searchParams.get('since');
+	if (since) {
+		const rows = db.prepare(
+			'SELECT id, encrypted_blob, updated_at FROM todos WHERE user_id = ? AND updated_at > ?'
+		).all(userId, Number(since));
+		return json(rows);
+	}
+
 	const rows = db.prepare(
-		'SELECT id, encrypted_blob, created_at FROM todos WHERE user_id = ?'
+		'SELECT id, encrypted_blob, updated_at FROM todos WHERE user_id = ?'
 	).all(userId);
 	return json(rows);
 };
@@ -20,13 +28,13 @@ export const POST: RequestHandler = async ({ request }) => {
 	const userId = body.user_id;
 	if (!userId || !body.encrypted_blob) return json({ error: 'Missing fields' }, { status: 400 });
 
-	const created_at = Date.now();
+	const now = Date.now();
 
 	db.prepare(
-		'INSERT INTO todos (id, user_id, encrypted_blob, created_at) VALUES (?, ?, ?, ?)'
-	).run(id, userId, body.encrypted_blob, created_at);
+		'INSERT INTO todos (id, user_id, encrypted_blob, updated_at) VALUES (?, ?, ?, ?)'
+	).run(id, userId, body.encrypted_blob, now);
 
-	const todo = { id, user_id: userId, encrypted_blob: body.encrypted_blob, created_at };
-	broadcast('todo_created', { todo });
+	const todo = { id, user_id: userId, encrypted_blob: body.encrypted_blob, updated_at: now };
+	broadcast(userId, 'todo_created', { todo });
 	return json(todo, { status: 201 });
 };

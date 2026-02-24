@@ -23,16 +23,24 @@ CREATE TABLE IF NOT EXISTS lists (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL REFERENCES users(id),
   encrypted_blob TEXT NOT NULL,
-  sort_order REAL NOT NULL,
-  created_at INTEGER NOT NULL
+  updated_at INTEGER NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS todos (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL REFERENCES users(id),
   encrypted_blob TEXT NOT NULL,
-  created_at INTEGER NOT NULL
+  updated_at INTEGER NOT NULL
 );
+
+CREATE INDEX IF NOT EXISTS idx_todos_user_updated ON todos(user_id, updated_at);
+CREATE INDEX IF NOT EXISTS idx_lists_user_updated ON lists(user_id, updated_at);
 `);
+
+// Migration: remove sort_order column from lists (now stored in encrypted blob)
+const listCols = db.prepare("PRAGMA table_info(lists)").all() as { name: string }[];
+if (listCols.some(c => c.name === 'sort_order')) {
+	db.exec('ALTER TABLE lists DROP COLUMN sort_order');
+}
 
 export { db };

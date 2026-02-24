@@ -13,10 +13,11 @@ export const PATCH: RequestHandler = async ({ params, request }) => {
 
 	if (body.encrypted_blob === undefined) throw error(400, 'No fields to update');
 
-	db.prepare('UPDATE todos SET encrypted_blob = ? WHERE id = ?').run(body.encrypted_blob, params.id);
+	const now = Date.now();
+	db.prepare('UPDATE todos SET encrypted_blob = ?, updated_at = ? WHERE id = ?').run(body.encrypted_blob, now, params.id);
 
-	const todo = db.prepare('SELECT id, encrypted_blob, created_at FROM todos WHERE id = ?').get(params.id);
-	broadcast('todo_updated', { todo });
+	const todo = db.prepare('SELECT id, encrypted_blob, updated_at FROM todos WHERE id = ?').get(params.id);
+	broadcast(userId, 'todo_updated', { todo });
 	return json(todo);
 };
 
@@ -27,6 +28,6 @@ export const DELETE: RequestHandler = async ({ params, request }) => {
 
 	const result = db.prepare('DELETE FROM todos WHERE id = ? AND user_id = ?').run(params.id, userId);
 	if (result.changes === 0) throw error(404, 'Todo not found');
-	broadcast('todo_deleted', { id: params.id });
+	broadcast(userId, 'todo_deleted', { id: params.id });
 	return json({ ok: true });
 };

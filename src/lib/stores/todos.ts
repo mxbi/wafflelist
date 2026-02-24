@@ -20,13 +20,23 @@ async function api(path: string, opts?: RequestInit) {
 }
 
 async function decryptTodo(key: CryptoKey, row: EncryptedTodo): Promise<Todo> {
-	const plain = await decrypt(key, row.encrypted_blob) as Omit<Todo, 'id' | 'created_at'>;
-	return { ...plain, id: row.id, sort_order: (plain as any).sort_order ?? 0, created_at: row.created_at } as Todo;
+	const plain = await decrypt(key, row.encrypted_blob) as Record<string, unknown>;
+	return {
+		...plain,
+		id: row.id,
+		sort_order: (plain.sort_order as number) ?? 0,
+		created_at: (plain.created_at as number) ?? row.updated_at
+	} as Todo;
 }
 
 async function decryptList(key: CryptoKey, row: EncryptedList): Promise<List> {
-	const plain = await decrypt(key, row.encrypted_blob) as Omit<List, 'id' | 'sort_order' | 'created_at'>;
-	return { ...plain, id: row.id, sort_order: row.sort_order, created_at: row.created_at } as List;
+	const plain = await decrypt(key, row.encrypted_blob) as Record<string, unknown>;
+	return {
+		...plain,
+		id: row.id,
+		sort_order: (plain.sort_order as number) ?? 0,
+		created_at: (plain.created_at as number) ?? row.updated_at
+	} as List;
 }
 
 export async function loadTodos() {
@@ -44,7 +54,8 @@ export async function createTodo(todo: { title: string; list_id?: string | null;
 	const sortOrders = currentTodos.filter(t => !t.completed_at).map(t => t.sort_order);
 	const sort_order = sortOrders.length > 0 ? Math.min(...sortOrders) - 1 : 0;
 
-	const plainData: Omit<Todo, 'id' | 'created_at'> = {
+	const created_at = Date.now();
+	const plainData: Omit<Todo, 'id'> = {
 		user_id: userId,
 		list_id: todo.list_id ?? null,
 		title: todo.title,
@@ -53,14 +64,15 @@ export async function createTodo(todo: { title: string; list_id?: string | null;
 		reminder_date: null,
 		snoozed_until: null,
 		completed_at: null,
-		sort_order
+		sort_order,
+		created_at
 	};
 	const encrypted_blob = await encrypt(encryptionKey, plainData);
 	const row: EncryptedTodo = await api('/api/todos', {
 		method: 'POST',
 		body: JSON.stringify({ user_id: userId, encrypted_blob })
 	});
-	const newTodo: Todo = { ...plainData, id: row.id, created_at: row.created_at };
+	const newTodo: Todo = { ...plainData, id: row.id };
 	todos.update(t => {
 		if (t.some(existing => existing.id === newTodo.id)) return t;
 		return [...t, newTodo];
@@ -74,14 +86,14 @@ export async function updateTodo(id: string, fields: Partial<Todo>) {
 	if (!current) throw new Error('Todo not found');
 
 	const updated = { ...current, ...fields };
-	const { id: _id, created_at, ...plainFields } = updated;
+	const { id: _id, ...plainFields } = updated;
 	const encrypted_blob = await encrypt(encryptionKey, plainFields);
 
-	const row: EncryptedTodo = await api(`/api/todos/${id}`, {
+	await api(`/api/todos/${id}`, {
 		method: 'PATCH',
 		body: JSON.stringify({ user_id: userId, encrypted_blob })
 	});
-	const finalTodo: Todo = { ...updated, created_at: row.created_at };
+	const finalTodo: Todo = updated;
 	todos.update(t => t.map(todo => todo.id === id ? finalTodo : todo));
 	return finalTodo;
 }
@@ -99,18 +111,25 @@ export async function loadLists() {
 	const { userId, encryptionKey } = getAuth();
 	const rows: EncryptedList[] = await api(`/api/lists?user_id=${userId}`);
 	const decrypted = await Promise.all(rows.map(r => decryptList(encryptionKey, r)));
+	decrypted.sort((a, b) => a.sort_order - b.sort_order);
 	lists.set(decrypted);
 }
 
 export async function createList(name: string, icon?: string) {
 	const { userId, encryptionKey } = getAuth();
-	const plainData: Omit<List, 'id' | 'sort_order' | 'created_at'> = { user_id: userId, name, icon: icon ?? null };
+	const created_at = Date.now();
+
+	const currentLists = get(lists);
+	const sortOrders = currentLists.map(l => l.sort_order);
+	const sort_order = sortOrders.length > 0 ? Math.max(...sortOrders) + 1 : 0;
+
+	const plainData: Omit<List, 'id'> = { user_id: userId, name, icon: icon ?? null, sort_order, created_at };
 	const encrypted_blob = await encrypt(encryptionKey, plainData);
 	const row: EncryptedList = await api('/api/lists', {
 		method: 'POST',
 		body: JSON.stringify({ user_id: userId, encrypted_blob })
 	});
-	const newList: List = { ...plainData, id: row.id, sort_order: row.sort_order, created_at: row.created_at };
+	const newList: List = { ...plainData, id: row.id };
 	lists.update(l => {
 		if (l.some(existing => existing.id === newList.id)) return l;
 		return [...l, newList];
@@ -124,19 +143,15 @@ export async function updateList(id: string, fields: Partial<List>) {
 	if (!current) throw new Error('List not found');
 
 	const updated = { ...current, ...fields };
-	const { id: _id, sort_order, created_at, ...plainFields } = updated;
+	const { id: _id, ...plainFields } = updated;
 	const encrypted_blob = await encrypt(encryptionKey, plainFields);
 
-	const body: Record<string, unknown> = { user_id: userId, encrypted_blob };
-	if ('sort_order' in fields) body.sort_order = fields.sort_order;
-
-	const row: EncryptedList = await api(`/api/lists/${id}`, {
+	await api(`/api/lists/${id}`, {
 		method: 'PATCH',
-		body: JSON.stringify(body)
+		body: JSON.stringify({ user_id: userId, encrypted_blob })
 	});
-	const finalList: List = { ...updated, sort_order: row.sort_order, created_at: row.created_at };
-	lists.update(l => l.map(list => list.id === id ? finalList : list));
-	return finalList;
+	lists.update(l => l.map(list => list.id === id ? updated : list));
+	return updated;
 }
 
 export async function deleteList(id: string) {
@@ -158,7 +173,8 @@ export const mobileView = writable<'sidebar' | 'list' | 'detail'>('sidebar');
 
 
 export function setupSync() {
-	const es = new EventSource('/api/sync');
+	const { userId } = getAuth();
+	const es = new EventSource(`/api/sync?user_id=${encodeURIComponent(userId)}`);
 	es.onmessage = async (e) => {
 		const data = JSON.parse(e.data);
 		if (data.type === 'connected') return;

@@ -1,6 +1,7 @@
 import { writable, get } from 'svelte/store';
 import { browser } from '$app/environment';
 import { deriveUserId, deriveEncryptionKey } from '$lib/crypto';
+import { saveKey, loadKey, clearKey } from '$lib/keystore';
 
 interface AuthState {
 	status: 'locked' | 'unlocked';
@@ -8,7 +9,7 @@ interface AuthState {
 	encryptionKey: CryptoKey | null;
 }
 
-const STORAGE_KEY = 'wafflelist-phrase';
+const LEGACY_STORAGE_KEY = 'wafflelist-phrase';
 
 export const authState = writable<AuthState>({ status: 'locked', userId: null, encryptionKey: null });
 
@@ -24,20 +25,42 @@ export async function login(phrase: string): Promise<void> {
 		body: JSON.stringify({ user_id: userId })
 	});
 
-	if (browser) localStorage.setItem(STORAGE_KEY, phrase);
+	if (browser) {
+		await saveKey(userId, encryptionKey);
+		localStorage.removeItem(LEGACY_STORAGE_KEY);
+	}
 	authState.set({ status: 'unlocked', userId, encryptionKey });
 }
 
-export function logout(): void {
-	if (browser) localStorage.removeItem(STORAGE_KEY);
+export async function logout(): Promise<void> {
+	if (browser) {
+		await clearKey();
+		localStorage.removeItem(LEGACY_STORAGE_KEY);
+	}
 	authState.set({ status: 'locked', userId: null, encryptionKey: null });
 }
 
 export async function tryRestore(): Promise<void> {
 	if (!browser) return;
-	const phrase = localStorage.getItem(STORAGE_KEY);
-	if (!phrase) return;
-	await login(phrase);
+
+	// Try IndexedDB first
+	const stored = await loadKey();
+	if (stored) {
+		await fetch('/api/auth/login', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ user_id: stored.userId })
+		});
+		localStorage.removeItem(LEGACY_STORAGE_KEY);
+		authState.set({ status: 'unlocked', userId: stored.userId, encryptionKey: stored.key });
+		return;
+	}
+
+	// Migrate from legacy localStorage
+	const phrase = localStorage.getItem(LEGACY_STORAGE_KEY);
+	if (phrase) {
+		await login(phrase);
+	}
 }
 
 export function getAuth(): { userId: string; encryptionKey: CryptoKey } {
