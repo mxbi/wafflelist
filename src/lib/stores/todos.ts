@@ -69,6 +69,8 @@ export async function deleteList(id: string) {
 	lists.update((l) => l.filter((list) => list.id !== id));
 }
 
+export const mobileView = writable<'sidebar' | 'list' | 'detail'>('sidebar');
+
 export const currentReloadFn = writable<(() => void) | null>(null);
 
 export function setupSync() {

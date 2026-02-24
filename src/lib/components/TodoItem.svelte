@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { updateTodo, deleteTodo, selectedTodoId } from '$lib/stores/todos';
+	import { updateTodo, deleteTodo, selectedTodoId, mobileView } from '$lib/stores/todos';
 	import { formatRelativeDate } from '$lib/dates';
 	import type { Todo } from '$lib/types';
 
@@ -40,7 +40,13 @@
 	}
 
 	function selectTodo() {
-		selectedTodoId.set(isSelected ? null : todo.id);
+		if (isSelected) {
+			selectedTodoId.set(null);
+			mobileView.set('list');
+		} else {
+			selectedTodoId.set(todo.id);
+			mobileView.set('detail');
+		}
 	}
 
 	function handleContextMenu(e: MouseEvent) {

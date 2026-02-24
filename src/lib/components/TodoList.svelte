@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { todos, searchQuery } from '$lib/stores/todos';
+	import { todos, searchQuery, mobileView } from '$lib/stores/todos';
 	import TodoItem from './TodoItem.svelte';
 	import AddTodo from './AddTodo.svelte';
 	import BackgroundPicker from './BackgroundPicker.svelte';
@@ -30,6 +30,7 @@
 
 <div class="todo-list">
 	<div class="list-header">
+		<button class="mobile-back" onclick={() => mobileView.set('sidebar')}>&larr;</button>
 		<h1>{title}</h1>
 		<BackgroundPicker />
 	</div>
@@ -77,6 +78,19 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
+	}
+	.mobile-back {
+		display: none;
+		background: none;
+		border: none;
+		color: white;
+		font-size: 1.4rem;
+		cursor: pointer;
+		padding: 0 4px;
+		text-shadow: 0 1px 3px rgba(0,0,0,0.2);
+	}
+	@media (max-width: 768px) {
+		.mobile-back { display: block; }
 	}
 	h1 {
 		margin: 0;

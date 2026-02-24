@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { todos, selectedTodoId, updateTodo, deleteTodo, lists } from '$lib/stores/todos';
+	import { todos, selectedTodoId, updateTodo, deleteTodo, lists, mobileView } from '$lib/stores/todos';
 	import type { Todo } from '$lib/types';
 
 	const todo = $derived($todos.find((t) => t.id === $selectedTodoId) ?? null);
@@ -28,6 +28,7 @@
 
 	function close() {
 		selectedTodoId.set(null);
+		mobileView.set('list');
 	}
 
 	function save() {
@@ -259,4 +260,11 @@
 		border-radius: 4px;
 	}
 	.delete-btn:hover { background: #fde8e8; }
+
+	@media (max-width: 768px) {
+		.detail-sidebar {
+			width: 100%;
+			min-width: 100%;
+		}
+	}
 </style>

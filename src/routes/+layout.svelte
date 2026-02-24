@@ -1,7 +1,7 @@
 <script lang="ts">
 	import Sidebar from '$lib/components/Sidebar.svelte';
 	import DetailSidebar from '$lib/components/DetailSidebar.svelte';
-	import { loadLists, loadCounts, setupSync } from '$lib/stores/todos';
+	import { loadLists, loadCounts, setupSync, mobileView } from '$lib/stores/todos';
 	import { background } from '$lib/stores/settings';
 	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
@@ -26,7 +26,7 @@
 	});
 </script>
 
-<div class="app-layout">
+<div class="app-layout" data-mobile-view={$mobileView}>
 	<Sidebar />
 	<main style={bgStyle}>
 		{@render children()}
@@ -53,5 +53,30 @@
 		flex: 1;
 		overflow: hidden;
 		transition: background 0.3s;
+	}
+
+	@media (max-width: 768px) {
+		.app-layout > :global(.sidebar),
+		.app-layout > main,
+		.app-layout > :global(.detail-sidebar) {
+			display: none;
+		}
+
+		.app-layout[data-mobile-view='sidebar'] > :global(.sidebar) {
+			display: flex;
+			width: 100%;
+			min-width: 100%;
+		}
+
+		.app-layout[data-mobile-view='list'] > main {
+			display: block;
+			width: 100%;
+		}
+
+		.app-layout[data-mobile-view='detail'] > :global(.detail-sidebar) {
+			display: flex;
+			width: 100%;
+			min-width: 100%;
+		}
 	}
 </style>
