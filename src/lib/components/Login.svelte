@@ -9,13 +9,13 @@
 	let loading = $state(false);
 	let error = $state('');
 
-	function handleGenerate() {
-		generatedPhrase = generateMnemonic();
+	async function handleGenerate() {
+		generatedPhrase = await generateMnemonic();
 		mode = 'generate';
 	}
 
 	async function handleLogin(p: string) {
-		if (!validateMnemonic(p.trim())) {
+		if (!(await validateMnemonic(p.trim()))) {
 			error = 'Invalid vault phrase';
 			return;
 		}

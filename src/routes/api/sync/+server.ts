@@ -1,9 +1,9 @@
 import { addSyncListener } from '$lib/server/sync';
+import { verifySyncRequest } from '$lib/server/verify';
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ url }) => {
-	const userId = url.searchParams.get('user_id');
-	if (!userId) return new Response('user_id required', { status: 400 });
+	const userId = await verifySyncRequest(url);
 
 	let remove: (() => void) | undefined;
 

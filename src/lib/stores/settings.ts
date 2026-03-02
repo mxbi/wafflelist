@@ -5,13 +5,22 @@ const STORAGE_KEY = 'wafflelist-background';
 
 const defaultBackground = '#2B579A';
 
+const VALID_HEX = /^#[0-9a-fA-F]{6}$/;
+const VALID_GRADIENT = /^linear-gradient\(\d+deg,\s*#[0-9a-fA-F]{3,8}\s+\d+%,\s*#[0-9a-fA-F]{3,8}\s+\d+%\)$/;
+
+function isValidBackground(value: string): boolean {
+	return VALID_HEX.test(value) || VALID_GRADIENT.test(value);
+}
+
 function createBackgroundStore() {
-	const initial = browser ? (localStorage.getItem(STORAGE_KEY) || defaultBackground) : defaultBackground;
+	const stored = browser ? localStorage.getItem(STORAGE_KEY) : null;
+	const initial = stored && isValidBackground(stored) ? stored : defaultBackground;
 	const { subscribe, set } = writable<string>(initial);
 
 	return {
 		subscribe,
 		set(value: string) {
+			if (!isValidBackground(value)) return;
 			set(value);
 			if (browser) localStorage.setItem(STORAGE_KEY, value);
 		}

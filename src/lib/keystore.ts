@@ -15,24 +15,24 @@ function tx(db: IDBDatabase, mode: IDBTransactionMode): IDBObjectStore {
 	return db.transaction(STORE_NAME, mode).objectStore(STORE_NAME);
 }
 
-export async function saveKey(userId: string, key: CryptoKey): Promise<void> {
+export async function saveKey(userId: string, key: CryptoKey, signingKey: CryptoKey): Promise<void> {
 	const db = await openDB();
 	return new Promise((resolve, reject) => {
-		const req = tx(db, 'readwrite').put({ userId, key }, KEY_ID);
+		const req = tx(db, 'readwrite').put({ userId, key, signingKey }, KEY_ID);
 		req.onsuccess = () => { db.close(); resolve(); };
 		req.onerror = () => { db.close(); reject(req.error); };
 	});
 }
 
-export async function loadKey(): Promise<{ userId: string; key: CryptoKey } | null> {
+export async function loadKey(): Promise<{ userId: string; key: CryptoKey; signingKey: CryptoKey } | null> {
 	const db = await openDB();
 	return new Promise((resolve, reject) => {
 		const req = tx(db, 'readonly').get(KEY_ID);
 		req.onsuccess = () => {
 			db.close();
 			const result = req.result;
-			if (result && result.userId && result.key) {
-				resolve({ userId: result.userId, key: result.key });
+			if (result && result.userId && result.key && result.signingKey) {
+				resolve({ userId: result.userId, key: result.key, signingKey: result.signingKey });
 			} else {
 				resolve(null);
 			}

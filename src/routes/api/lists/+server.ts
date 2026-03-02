@@ -1,12 +1,12 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
 import { broadcast } from '$lib/server/sync';
+import { verifyRequest } from '$lib/server/verify';
 import { v4 as uuid } from 'uuid';
 import type { RequestHandler } from './$types';
 
-export const GET: RequestHandler = async ({ url }) => {
-	const userId = url.searchParams.get('user_id');
-	if (!userId) return json([], { status: 400 });
+export const GET: RequestHandler = async ({ request, url }) => {
+	const userId = await verifyRequest(request);
 
 	const since = url.searchParams.get('since');
 	if (since) {
@@ -23,11 +23,11 @@ export const GET: RequestHandler = async ({ url }) => {
 };
 
 export const POST: RequestHandler = async ({ request }) => {
+	const userId = await verifyRequest(request);
 	const body = await request.json();
-	const id = uuid();
-	const userId = body.user_id;
-	if (!userId || !body.encrypted_blob) return json({ error: 'Missing fields' }, { status: 400 });
+	if (!body.encrypted_blob) return json({ error: 'Missing fields' }, { status: 400 });
 
+	const id = uuid();
 	const now = Date.now();
 
 	db.prepare(

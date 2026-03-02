@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
   username TEXT NOT NULL,
   password_hash TEXT NOT NULL,
-  encryption_public_key TEXT,
+  signing_public_key TEXT,
   created_at INTEGER NOT NULL
 );
 
@@ -41,6 +41,12 @@ CREATE INDEX IF NOT EXISTS idx_lists_user_updated ON lists(user_id, updated_at);
 const listCols = db.prepare("PRAGMA table_info(lists)").all() as { name: string }[];
 if (listCols.some(c => c.name === 'sort_order')) {
 	db.exec('ALTER TABLE lists DROP COLUMN sort_order');
+}
+
+// Migration: rename encryption_public_key -> signing_public_key
+const userCols = db.prepare("PRAGMA table_info(users)").all() as { name: string }[];
+if (userCols.some(c => c.name === 'encryption_public_key') && !userCols.some(c => c.name === 'signing_public_key')) {
+	db.exec('ALTER TABLE users RENAME COLUMN encryption_public_key TO signing_public_key');
 }
 
 export { db };
