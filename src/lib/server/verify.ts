@@ -40,6 +40,22 @@ export async function verifyRequest(request: Request): Promise<string> {
 	return userId;
 }
 
+const MAX_BLOB_SIZE = 10 * 1024; // 10 KB
+const MAX_BLOBS_PER_USER = 10_000;
+
+export function validateBlob(blob: unknown): void {
+	if (typeof blob !== 'string' || blob.length > MAX_BLOB_SIZE) {
+		throw error(400, `encrypted_blob must be a string of at most ${MAX_BLOB_SIZE} characters`);
+	}
+}
+
+export function enforceUserBlobLimit(userId: string, table: 'todos' | 'lists'): void {
+	const row = db.prepare(`SELECT COUNT(*) as count FROM ${table} WHERE user_id = ?`).get(userId) as { count: number };
+	if (row.count >= MAX_BLOBS_PER_USER) {
+		throw error(400, `Maximum of ${MAX_BLOBS_PER_USER} ${table} per user reached`);
+	}
+}
+
 export async function verifySyncRequest(url: URL): Promise<string> {
 	const userId = url.searchParams.get('user_id');
 	const timestamp = url.searchParams.get('ts');

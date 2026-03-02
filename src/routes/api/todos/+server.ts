@@ -1,7 +1,7 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
 import { broadcast } from '$lib/server/sync';
-import { verifyRequest } from '$lib/server/verify';
+import { verifyRequest, validateBlob, enforceUserBlobLimit } from '$lib/server/verify';
 import { v4 as uuid } from 'uuid';
 import type { RequestHandler } from './$types';
 
@@ -26,6 +26,8 @@ export const POST: RequestHandler = async ({ request }) => {
 	const userId = await verifyRequest(request);
 	const body = await request.json();
 	if (!body.encrypted_blob) return json({ error: 'Missing fields' }, { status: 400 });
+	validateBlob(body.encrypted_blob);
+	enforceUserBlobLimit(userId, 'todos');
 
 	const id = uuid();
 	const now = Date.now();

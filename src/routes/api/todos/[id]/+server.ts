@@ -1,7 +1,7 @@
 import { json, error } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
 import { broadcast } from '$lib/server/sync';
-import { verifyRequest } from '$lib/server/verify';
+import { verifyRequest, validateBlob } from '$lib/server/verify';
 import type { RequestHandler } from './$types';
 
 export const PATCH: RequestHandler = async ({ params, request }) => {
@@ -12,6 +12,7 @@ export const PATCH: RequestHandler = async ({ params, request }) => {
 	if (!existing) throw error(404, 'Todo not found');
 
 	if (body.encrypted_blob === undefined) throw error(400, 'No fields to update');
+	validateBlob(body.encrypted_blob);
 
 	const now = Date.now();
 	db.prepare('UPDATE todos SET encrypted_blob = ?, updated_at = ? WHERE id = ?').run(body.encrypted_blob, now, params.id);
