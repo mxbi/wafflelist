@@ -2,7 +2,6 @@
 	import { todos, searchQuery, mobileView, selectedTodoId, updateTodo } from '$lib/stores/todos';
 	import TodoItem from './TodoItem.svelte';
 	import AddTodo from './AddTodo.svelte';
-	import BackgroundPicker from './BackgroundPicker.svelte';
 	import type { Todo } from '$lib/types';
 
 	interface Props {
@@ -168,7 +167,6 @@
 			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			<h1 ondblclick={startEdit} class:editable={!!onrename}>{title}</h1>
 		{/if}
-		<BackgroundPicker />
 	</div>
 
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -276,7 +274,7 @@
 		text-shadow: 0 1px 3px rgba(0,0,0,0.2);
 		background: rgba(255,255,255,0.2);
 		border: 1px solid rgba(255,255,255,0.5);
-		border-radius: 4px;
+		border-radius: var(--radius-sm);
 		padding: 2px 6px;
 		margin: -3px -7px;
 		outline: none;
@@ -310,7 +308,7 @@
 	.arrow {
 		display: inline-block;
 		font-size: 0.7rem;
-		transition: transform 0.2s;
+		transition: transform var(--transition-slow);
 	}
 	.arrow.expanded { transform: rotate(90deg); }
 	.items-wrapper {
@@ -321,9 +319,9 @@
 		left: 0;
 		right: 0;
 		height: 24px;
-		border-radius: 8px;
+		border-radius: var(--radius-lg);
 		z-index: 1;
-		transition: background 0.1s;
+		transition: background var(--transition-fast);
 	}
 	.edge-top {
 		top: -24px;
@@ -333,7 +331,7 @@
 	}
 	.edge-drop-zone.active {
 		background: rgba(43, 87, 154, 0.15);
-		border: 2px dashed #2B579A;
+		border: 2px dashed var(--color-primary);
 	}
 	.completed-items {
 		opacity: 0.7;

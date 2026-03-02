@@ -51,6 +51,50 @@
 {/if}
 
 <style>
+	:global(:root) {
+		/* Brand */
+		--color-primary: #2B579A;
+		--color-primary-light: #e8f0fe;
+
+		/* Danger */
+		--color-danger: #e74c3c;
+		--color-danger-dark: #c0392b;
+		--color-danger-bg: #fde8e8;
+
+		/* Text */
+		--color-text: #333;
+		--color-text-secondary: #555;
+		--color-text-muted: #888;
+		--color-text-faint: #999;
+		--color-text-faintest: #aaa;
+		--color-text-muted-border: #ccc;
+
+		/* Backgrounds */
+		--color-bg: #fff;
+		--color-bg-hover: #f0f0f0;
+
+		/* Borders */
+		--color-border: #e8e8e8;
+		--color-border-subtle: #e0e0e0;
+		--color-border-light: #ddd;
+
+		/* Shadows */
+		--shadow-sm: 0 1px 4px rgba(0,0,0,0.08);
+		--shadow-md: 0 4px 12px rgba(0,0,0,0.1);
+		--shadow-lg: 0 8px 32px rgba(0,0,0,0.2);
+		--shadow-xl: 0 16px 48px rgba(0,0,0,0.2);
+
+		/* Border radius */
+		--radius-sm: 4px;
+		--radius-md: 6px;
+		--radius-lg: 8px;
+		--radius-xl: 12px;
+
+		/* Transitions */
+		--transition-fast: 0.1s;
+		--transition-base: 0.15s;
+		--transition-slow: 0.2s;
+	}
 	:global(*) {
 		margin: 0;
 		padding: 0;

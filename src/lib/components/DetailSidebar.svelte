@@ -155,7 +155,7 @@
 		width: 320px;
 		min-width: 320px;
 		background: #fafbfc;
-		border-left: 1px solid #e0e0e0;
+		border-left: 1px solid var(--color-border-subtle);
 		display: flex;
 		flex-direction: column;
 		height: 100vh;
@@ -171,12 +171,12 @@
 		background: none;
 		border: none;
 		font-size: 1.4rem;
-		color: #999;
+		color: var(--color-text-faint);
 		cursor: pointer;
 		padding: 0 4px;
 		line-height: 1;
 	}
-	.close-btn:hover { color: #333; }
+	.close-btn:hover { color: var(--color-text); }
 
 	.detail-body {
 		flex: 1;
@@ -203,16 +203,16 @@
 		background: none;
 		font-size: 1.15rem;
 		font-weight: 600;
-		color: #333;
+		color: var(--color-text);
 		outline: none;
 		padding: 4px 0;
 	}
 	.title-input.completed {
 		text-decoration: line-through;
-		color: #999;
+		color: var(--color-text-faint);
 	}
 	.title-input:focus {
-		border-bottom: 2px solid #2B579A;
+		border-bottom: 2px solid var(--color-primary);
 	}
 
 	.detail-section {
@@ -222,7 +222,7 @@
 		display: block;
 		font-size: 0.75rem;
 		font-weight: 600;
-		color: #888;
+		color: var(--color-text-muted);
 		text-transform: uppercase;
 		letter-spacing: 0.03em;
 		margin-bottom: 6px;
@@ -230,16 +230,16 @@
 	.field-input {
 		width: 100%;
 		padding: 8px 10px;
-		border: 1px solid #ddd;
-		border-radius: 6px;
+		border: 1px solid var(--color-border-light);
+		border-radius: var(--radius-md);
 		font-size: 0.9rem;
 		font-family: inherit;
-		background: white;
-		color: #333;
+		background: var(--color-bg);
+		color: var(--color-text);
 		outline: none;
 		box-sizing: border-box;
 	}
-	.field-input:focus { border-color: #2B579A; }
+	.field-input:focus { border-color: var(--color-primary); }
 
 	select.field-input {
 		cursor: pointer;
@@ -254,42 +254,42 @@
 		padding: 4px 12px;
 		font-size: 0.8rem;
 		font-family: inherit;
-		border: 1px solid #ddd;
-		border-radius: 6px;
-		background: white;
-		color: #555;
+		border: 1px solid var(--color-border-light);
+		border-radius: var(--radius-md);
+		background: var(--color-bg);
+		color: var(--color-text-secondary);
 		cursor: pointer;
 	}
 	.quick-date-btn:hover {
-		background: #e8f0fe;
-		border-color: #2B579A;
-		color: #2B579A;
+		background: var(--color-primary-light);
+		border-color: var(--color-primary);
+		color: var(--color-primary);
 	}
 	.quick-date-clear {
 		margin-left: auto;
-		color: #999;
+		color: var(--color-text-faint);
 	}
 	.quick-date-clear:hover {
-		background: #fde8e8;
-		border-color: #e74c3c;
-		color: #e74c3c;
+		background: var(--color-danger-bg);
+		border-color: var(--color-danger);
+		color: var(--color-danger);
 	}
 
 	.notes-input {
 		width: 100%;
 		padding: 8px 10px;
-		border: 1px solid #ddd;
-		border-radius: 6px;
+		border: 1px solid var(--color-border-light);
+		border-radius: var(--radius-md);
 		font-size: 0.9rem;
 		font-family: inherit;
-		background: white;
-		color: #333;
+		background: var(--color-bg);
+		color: var(--color-text);
 		outline: none;
 		resize: vertical;
 		min-height: 80px;
 		box-sizing: border-box;
 	}
-	.notes-input:focus { border-color: #2B579A; }
+	.notes-input:focus { border-color: var(--color-primary); }
 
 	.detail-footer {
 		display: flex;
@@ -300,18 +300,18 @@
 	}
 	.created-at {
 		font-size: 0.75rem;
-		color: #aaa;
+		color: var(--color-text-faintest);
 	}
 	.delete-btn {
 		background: none;
 		border: none;
-		color: #e74c3c;
+		color: var(--color-danger);
 		cursor: pointer;
 		font-size: 0.85rem;
 		padding: 4px 8px;
-		border-radius: 4px;
+		border-radius: var(--radius-sm);
 	}
-	.delete-btn:hover { background: #fde8e8; }
+	.delete-btn:hover { background: var(--color-danger-bg); }
 
 	@media (max-width: 768px) {
 		.detail-sidebar {

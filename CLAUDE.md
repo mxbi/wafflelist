@@ -31,7 +31,7 @@ src/
       sync.ts         # SSE broadcast/listener system
     stores/
       todos.ts        # Svelte stores + API call functions
-    types.ts          # TypeScript interfaces (User, List, Todo, Counts)
+    types.ts          # TypeScript interfaces (List, Todo, EncryptedTodo, EncryptedList)
   routes/
     +layout.svelte    # Root layout (sync init, list/count loading)
     +page.svelte      # Redirects to /inbox
@@ -45,7 +45,6 @@ src/
       todos/          # GET/POST, [id] PATCH/DELETE
       lists/          # GET/POST, [id] PATCH/DELETE
       sync/           # SSE endpoint
-      counts/         # View count badges
 data/
   wafflelist.db       # SQLite database (gitignored)
 ```
@@ -64,7 +63,7 @@ data/
 
 - **Todo**: id, user_id, list_id?, title, notes?, due_date?, reminder_date?, snoozed_until?, completed_at?, sort_order (REAL), created_at (INTEGER ms)
 - **List**: id, user_id, name, icon?, sort_order (REAL), created_at (INTEGER ms)
-- **User**: id, username, password_hash (not implemented), encryption_public_key?, created_at
+- **User**: id, username, password_hash, signing_public_key?, created_at
 
 Default user `'default-user'` is seeded on startup. No auth layer exists.
 

@@ -25,10 +25,10 @@ export function filterTodos(todos: Todo[], view: string, listId?: string): Todo[
 			return todos.filter(t => isActive(t) && !t.list_id && isNotSnoozed(t))
 				.sort(sortActive);
 		case 'today':
-			return todos.filter(t => isActive(t) && t.due_date === today() && isNotSnoozed(t))
+			return todos.filter(t => isActive(t) && t.due_date && t.due_date <= today() && isNotSnoozed(t))
 				.sort(sortActive);
 		case 'week':
-			return todos.filter(t => isActive(t) && t.due_date && t.due_date >= today() && t.due_date <= weekEnd() && isNotSnoozed(t))
+			return todos.filter(t => isActive(t) && t.due_date && t.due_date <= weekEnd() && isNotSnoozed(t))
 				.sort(sortActive);
 		case 'all':
 			return todos.filter(t => isActive(t) && isNotSnoozed(t))
@@ -60,8 +60,8 @@ export function computeCounts(todos: Todo[]): { inbox: number; today: number; we
 		}
 		all++;
 		if (!todo.list_id) inbox++;
-		if (todo.due_date === t) todayCount++;
-		if (todo.due_date && todo.due_date >= t && todo.due_date <= we) week++;
+		if (todo.due_date && todo.due_date <= t) todayCount++;
+		if (todo.due_date && todo.due_date <= we) week++;
 		if (todo.list_id) {
 			lists[todo.list_id] = (lists[todo.list_id] ?? 0) + 1;
 		}

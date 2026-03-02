@@ -1,10 +1,11 @@
 <script lang="ts">
 	import { lists, todos, createList, deleteList, searchQuery, counts, mobileView, selectedTodoId } from '$lib/stores/todos';
-	import { logout } from '$lib/stores/auth';
 	import { page } from '$app/stores';
-	import type { List } from '$lib/types';
-	import { Inbox, Star, Calendar, List as ListIcon, AlarmClockOff, Download, Lock } from 'lucide-svelte';
+	import { Inbox, Star, Calendar, List as ListIcon, AlarmClockOff, Settings, Plus } from 'lucide-svelte';
 	import type { ComponentType } from 'svelte';
+	import SettingsModal from './SettingsModal.svelte';
+
+	let showSettings = $state(false);
 
 	const iconMap: Record<string, ComponentType> = {
 		Inbox, Star, Calendar, List: ListIcon, AlarmClockOff
@@ -119,38 +120,30 @@
 		</div>
 	{:else}
 		<button class="add-list-btn" onclick={() => showNewListInput = true}>
-			<span class="nav-icon">+</span>
+			<span class="nav-icon"><Plus size={16} strokeWidth={2} /></span>
 			<span>New List</span>
 		</button>
 	{/if}
 
 	<div class="sidebar-footer">
-		<button class="logout-btn" onclick={() => {
-			const data = { lists: $lists, todos: $todos, exported_at: new Date().toISOString() };
-			const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-			const a = document.createElement('a');
-			a.href = URL.createObjectURL(blob);
-			a.download = `wafflelist-export-${new Date().toISOString().slice(0, 10)}.json`;
-			a.click();
-			URL.revokeObjectURL(a.href);
-		}}>
-			<span class="nav-icon"><Download size={16} strokeWidth={2} /></span>
-			<span>Export Data</span>
-		</button>
-		<button class="logout-btn" onclick={logout}>
-			<span class="nav-icon"><Lock size={16} strokeWidth={2} /></span>
-			<span>Lock / Logout</span>
+		<button class="settings-btn" onclick={() => showSettings = true}>
+			<span class="nav-icon"><Settings size={16} strokeWidth={2} /></span>
+			<span>Settings</span>
 		</button>
 	</div>
 </aside>
+
+{#if showSettings}
+	<SettingsModal onclose={() => showSettings = false} />
+{/if}
 
 <style>
 	.sidebar {
 		width: 260px;
 		min-width: 260px;
-		background: #fff;
-		color: #333;
-		border-right: 1px solid #e8e8e8;
+		background: var(--color-bg);
+		color: var(--color-text);
+		border-right: 1px solid var(--color-border);
 		display: flex;
 		flex-direction: column;
 		height: 100vh;
@@ -165,7 +158,7 @@
 	}
 	.alpha {
 		font-size: 0.55rem;
-		color: #aaa;
+		color: var(--color-text-faintest);
 		font-weight: 600;
 		letter-spacing: 0.05em;
 		vertical-align: super;
@@ -177,47 +170,47 @@
 		width: 100%;
 		padding: 8px 12px;
 		border: none;
-		border-radius: 6px;
-		background: #f0f0f0;
-		color: #333;
+		border-radius: var(--radius-md);
+		background: var(--color-bg-hover);
+		color: var(--color-text);
 		font-size: 0.9rem;
 		outline: none;
 		box-sizing: border-box;
 	}
-	.search-box input::placeholder { color: #999; }
-	.search-box input:focus { background: #e8e8e8; }
+	.search-box input::placeholder { color: var(--color-text-faint); }
+	.search-box input:focus { background: var(--color-border); }
 
 	.nav-item {
 		display: flex;
 		align-items: center;
 		gap: 10px;
 		padding: 8px 16px;
-		color: #555;
+		color: var(--color-text-secondary);
 		text-decoration: none;
 		font-size: 0.95rem;
-		border-radius: 4px;
+		border-radius: var(--radius-sm);
 		margin: 1px 8px;
 		position: relative;
 	}
-	.nav-item:hover { background: #f0f0f0; color: #333; }
-	.nav-item.active { background: #e8f0fe; color: #2B579A; font-weight: 600; }
+	.nav-item:hover { background: var(--color-bg-hover); color: var(--color-text); }
+	.nav-item.active { background: var(--color-primary-light); color: var(--color-primary); font-weight: 600; }
 	.nav-icon { width: 20px; text-align: center; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
 	.nav-label { flex: 1; }
 	.count {
 		margin-left: auto;
 		font-size: 0.75rem;
-		color: #aaa;
+		color: var(--color-text-faintest);
 		min-width: 16px;
 		text-align: right;
 	}
 
-	.divider { height: 1px; background: #e8e8e8; margin: 12px 16px; }
+	.divider { height: 1px; background: var(--color-border); margin: 12px 16px; }
 
 	.lists-header {
 		padding: 4px 16px;
 		font-size: 0.75rem;
 		text-transform: uppercase;
-		color: #999;
+		color: var(--color-text-faint);
 		letter-spacing: 0.05em;
 	}
 	.lists { flex: 1; }
@@ -228,13 +221,13 @@
 		right: 8px;
 		background: none;
 		border: none;
-		color: #ccc;
+		color: var(--color-text-muted-border);
 		cursor: pointer;
 		font-size: 1.1rem;
 		padding: 0 4px;
 	}
 	.nav-item:hover .delete-list { display: block; }
-	.delete-list:hover { color: #e74c3c; }
+	.delete-list:hover { color: var(--color-danger); }
 	.list-name { flex: 1; }
 
 	.add-list-btn {
@@ -245,12 +238,12 @@
 		margin: 4px 8px 16px;
 		background: none;
 		border: none;
-		color: #999;
+		color: var(--color-text-faint);
 		cursor: pointer;
 		font-size: 0.95rem;
-		border-radius: 4px;
+		border-radius: var(--radius-sm);
 	}
-	.add-list-btn:hover { background: #f0f0f0; color: #333; }
+	.add-list-btn:hover { background: var(--color-bg-hover); color: var(--color-text); }
 
 	.new-list-input {
 		padding: 4px 12px 16px;
@@ -259,21 +252,21 @@
 		width: 100%;
 		padding: 8px 12px;
 		border: none;
-		border-radius: 6px;
-		background: #f0f0f0;
-		color: #333;
+		border-radius: var(--radius-md);
+		background: var(--color-bg-hover);
+		color: var(--color-text);
 		font-size: 0.9rem;
 		outline: none;
 		box-sizing: border-box;
 	}
-	.new-list-input input::placeholder { color: #999; }
+	.new-list-input input::placeholder { color: var(--color-text-faint); }
 
 	.sidebar-footer {
 		margin-top: auto;
-		border-top: 1px solid #e8e8e8;
+		border-top: 1px solid var(--color-border);
 		padding: 8px;
 	}
-	.logout-btn {
+	.settings-btn {
 		display: flex;
 		align-items: center;
 		gap: 10px;
@@ -281,10 +274,10 @@
 		width: 100%;
 		background: none;
 		border: none;
-		color: #999;
+		color: var(--color-text-faint);
 		cursor: pointer;
 		font-size: 0.9rem;
-		border-radius: 4px;
+		border-radius: var(--radius-sm);
 	}
-	.logout-btn:hover { background: #f0f0f0; color: #333; }
+	.settings-btn:hover { background: var(--color-bg-hover); color: var(--color-text); }
 </style>

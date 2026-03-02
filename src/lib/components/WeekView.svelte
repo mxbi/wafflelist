@@ -2,7 +2,6 @@
 	import { todos, searchQuery } from '$lib/stores/todos';
 	import TodoItem from './TodoItem.svelte';
 	import AddTodo from './AddTodo.svelte';
-	import BackgroundPicker from './BackgroundPicker.svelte';
 	import { formatDateGroupLabel } from '$lib/dates';
 	import type { Todo } from '$lib/types';
 
@@ -52,7 +51,6 @@
 <div class="week-view">
 	<div class="list-header">
 		<h1>This Week</h1>
-		<BackgroundPicker />
 	</div>
 
 	<div class="week-content">

@@ -76,47 +76,47 @@
 		align-items: center;
 		justify-content: center;
 		height: 100vh;
-		background: #2B579A;
+		background: var(--color-primary);
 		font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 	}
 	.login-card {
-		background: white;
-		border-radius: 12px;
+		background: var(--color-bg);
+		border-radius: var(--radius-xl);
 		padding: 40px;
 		max-width: 460px;
 		width: 90%;
 		text-align: center;
-		box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+		box-shadow: var(--shadow-lg);
 	}
 	h1 { font-size: 1.8rem; margin-bottom: 16px; position: relative; display: inline-block; }
 	.alpha {
 		font-size: 0.55rem;
-		color: #aaa;
+		color: var(--color-text-faintest);
 		font-weight: 600;
 		letter-spacing: 0.05em;
 		vertical-align: super;
 		margin-left: 2px;
 	}
-	.warning { color: #999; font-size: 0.8rem; margin-bottom: 16px; }
+	.warning { color: var(--color-text-faint); font-size: 0.8rem; margin-bottom: 16px; }
 	.subtitle { color: #666; margin-bottom: 24px; font-size: 0.95rem; }
 	.buttons { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
 	.btn {
 		padding: 12px 20px;
-		border: 1px solid #ddd;
-		border-radius: 8px;
+		border: 1px solid var(--color-border-light);
+		border-radius: var(--radius-lg);
 		font-size: 1rem;
 		cursor: pointer;
-		background: white;
-		transition: background 0.15s;
+		background: var(--color-bg);
+		transition: background var(--transition-base);
 	}
 	.btn:hover { background: #f5f5f5; }
-	.btn.primary { background: #2B579A; color: white; border-color: #2B579A; }
+	.btn.primary { background: var(--color-primary); color: white; border-color: var(--color-primary); }
 	.btn.primary:hover { background: #1e3f70; }
 	.btn.primary:disabled { opacity: 0.5; cursor: default; }
 	.phrase-display {
 		background: #f8f8f8;
-		border: 1px solid #e0e0e0;
-		border-radius: 8px;
+		border: 1px solid var(--color-border-subtle);
+		border-radius: var(--radius-lg);
 		padding: 16px;
 		font-family: monospace;
 		font-size: 1rem;
@@ -131,28 +131,28 @@
 		margin-top: 16px;
 		justify-content: center;
 		font-size: 0.9rem;
-		color: #555;
+		color: var(--color-text-secondary);
 		cursor: pointer;
 	}
 	textarea {
 		width: 100%;
 		padding: 12px;
-		border: 1px solid #ddd;
-		border-radius: 8px;
+		border: 1px solid var(--color-border-light);
+		border-radius: var(--radius-lg);
 		font-size: 1rem;
 		font-family: monospace;
 		resize: none;
 		outline: none;
 		box-sizing: border-box;
 	}
-	textarea:focus { border-color: #2B579A; }
-	.error { color: #e74c3c; font-size: 0.9rem; margin-top: 8px; }
+	textarea:focus { border-color: var(--color-primary); }
+	.error { color: var(--color-danger); font-size: 0.9rem; margin-top: 8px; }
 	.spinner-wrap { padding: 40px 0; }
 	.spinner {
 		width: 40px;
 		height: 40px;
-		border: 3px solid #e0e0e0;
-		border-top-color: #2B579A;
+		border: 3px solid var(--color-border-subtle);
+		border-top-color: var(--color-primary);
 		border-radius: 50%;
 		margin: 0 auto 16px;
 		animation: spin 0.8s linear infinite;

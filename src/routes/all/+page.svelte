@@ -1,9 +1,5 @@
 <script lang="ts">
-	import TodoList from '$lib/components/TodoList.svelte';
-	import { todos } from '$lib/stores/todos';
-	import { filterTodos } from '$lib/filters';
-
-	const filtered = $derived(filterTodos($todos, 'all'));
+	import FilteredView from '$lib/components/FilteredView.svelte';
 </script>
 
-<TodoList title="All To-Dos" filteredTodos={filtered} />
+<FilteredView title="All To-Dos" view="all" />
