@@ -32,7 +32,7 @@
 
 <div class="login-container">
 	<div class="login-card">
-		<h1>🧇 WaffleList</h1>
+		<h1>🧇 WaffleList <span class="alpha">ALPHA</span></h1>
 
 		{#if loading}
 			<div class="spinner-wrap">
@@ -41,6 +41,7 @@
 			</div>
 		{:else if mode === 'choose'}
 			<p class="subtitle">Your data is end-to-end encrypted with a vault phrase.</p>
+			<p class="warning">WaffleList is in development, data may be deleted at any time.</p>
 			<div class="buttons">
 				<button class="btn primary" onclick={() => mode = 'enter'}>Log In</button>
 				<button class="btn" onclick={handleGenerate}>Create New Vault</button>
@@ -87,7 +88,16 @@
 		text-align: center;
 		box-shadow: 0 8px 32px rgba(0,0,0,0.2);
 	}
-	h1 { font-size: 1.8rem; margin-bottom: 16px; }
+	h1 { font-size: 1.8rem; margin-bottom: 16px; position: relative; display: inline-block; }
+	.alpha {
+		font-size: 0.55rem;
+		color: #aaa;
+		font-weight: 600;
+		letter-spacing: 0.05em;
+		vertical-align: super;
+		margin-left: 2px;
+	}
+	.warning { color: #999; font-size: 0.8rem; margin-bottom: 16px; }
 	.subtitle { color: #666; margin-bottom: 24px; font-size: 0.95rem; }
 	.buttons { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
 	.btn {

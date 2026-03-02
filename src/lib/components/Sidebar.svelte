@@ -59,7 +59,7 @@
 
 <aside class="sidebar">
 	<div class="sidebar-header">
-		<span class="logo">🧇 WaffleList</span>
+		<span class="logo">🧇 WaffleList <span class="alpha">ALPHA</span></span>
 	</div>
 
 	<div class="search-box">
@@ -156,6 +156,13 @@
 	.logo {
 		font-size: 1.3rem;
 		font-weight: 700;
+	}
+	.alpha {
+		font-size: 0.55rem;
+		color: #aaa;
+		font-weight: 600;
+		letter-spacing: 0.05em;
+		vertical-align: super;
 	}
 	.search-box {
 		padding: 8px 12px;
