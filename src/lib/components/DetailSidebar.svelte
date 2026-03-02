@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { todos, selectedTodoId, updateTodo, deleteTodo, lists, mobileView } from '$lib/stores/todos';
+	import { List as ListIcon } from 'lucide-svelte';
 	import type { Todo } from '$lib/types';
 
 	const todo = $derived($todos.find((t) => t.id === $selectedTodoId) ?? null);
@@ -106,7 +107,7 @@
 				<select class="field-input" bind:value={editListId} onchange={save}>
 					<option value={null}>Inbox (no list)</option>
 					{#each $lists as list (list.id)}
-						<option value={list.id}>{list.icon || '📋'} {list.name}</option>
+						<option value={list.id}>{list.icon || '▪'} {list.name}</option>
 					{/each}
 				</select>
 			</div>

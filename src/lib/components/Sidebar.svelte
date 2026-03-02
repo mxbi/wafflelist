@@ -3,6 +3,12 @@
 	import { logout } from '$lib/stores/auth';
 	import { page } from '$app/stores';
 	import type { List } from '$lib/types';
+	import { Inbox, Star, Calendar, List as ListIcon, AlarmClockOff, Download, Lock } from 'lucide-svelte';
+	import type { ComponentType } from 'svelte';
+
+	const iconMap: Record<string, ComponentType> = {
+		Inbox, Star, Calendar, List: ListIcon, AlarmClockOff
+	};
 
 	const viewCountKey: Record<string, string> = {
 		'/inbox': 'inbox',
@@ -24,11 +30,11 @@
 	let showNewListInput = $state(false);
 
 	const smartViews = [
-		{ path: '/inbox', label: 'Inbox', icon: '📥' },
-		{ path: '/today', label: 'Today', icon: '⭐' },
-		{ path: '/week', label: 'Week', icon: '📅' },
-		{ path: '/all', label: 'All', icon: '📋' },
-		{ path: '/snoozed', label: 'Snoozed', icon: '😴' }
+		{ path: '/inbox', label: 'Inbox', icon: 'Inbox' },
+		{ path: '/today', label: 'Today', icon: 'Star' },
+		{ path: '/week', label: 'Week', icon: 'Calendar' },
+		{ path: '/all', label: 'All', icon: 'List' },
+		{ path: '/snoozed', label: 'Snoozed', icon: 'AlarmClockOff' }
 	];
 
 	function isActive(path: string): boolean {
@@ -73,7 +79,7 @@
 	<nav class="smart-views">
 		{#each smartViews as view}
 			<a href={view.path} class="nav-item" class:active={isActive(view.path)} onclick={() => { selectedTodoId.set(null); mobileView.set('list'); }}>
-				<span class="nav-icon">{view.icon}</span>
+				<span class="nav-icon"><svelte:component this={iconMap[view.icon]} size={16} strokeWidth={2} /></span>
 				<span class="nav-label">{view.label}</span>
 				{#if getViewCount(view.path) > 0}
 					<span class="count">{getViewCount(view.path)}</span>
@@ -91,7 +97,7 @@
 	<nav class="lists">
 		{#each $lists as list (list.id)}
 			<a href="/list/{list.id}" class="nav-item" class:active={isActive(`/list/${list.id}`)} onclick={() => { selectedTodoId.set(null); mobileView.set('list'); }}>
-				<span class="nav-icon">{list.icon || '📋'}</span>
+				<span class="nav-icon">{#if list.icon}{list.icon}{:else}<ListIcon size={16} strokeWidth={2} />{/if}</span>
 				<span class="list-name">{list.name}</span>
 				{#if ($counts.lists[list.id] ?? 0) > 0}
 					<span class="count">{$counts.lists[list.id]}</span>
@@ -128,11 +134,11 @@
 			a.click();
 			URL.revokeObjectURL(a.href);
 		}}>
-			<span class="nav-icon">📤</span>
+			<span class="nav-icon"><Download size={16} strokeWidth={2} /></span>
 			<span>Export Data</span>
 		</button>
 		<button class="logout-btn" onclick={logout}>
-			<span class="nav-icon">🔒</span>
+			<span class="nav-icon"><Lock size={16} strokeWidth={2} /></span>
 			<span>Lock / Logout</span>
 		</button>
 	</div>
@@ -195,7 +201,7 @@
 	}
 	.nav-item:hover { background: #f0f0f0; color: #333; }
 	.nav-item.active { background: #e8f0fe; color: #2B579A; font-weight: 600; }
-	.nav-icon { width: 20px; text-align: center; flex-shrink: 0; }
+	.nav-icon { width: 20px; text-align: center; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
 	.nav-label { flex: 1; }
 	.count {
 		margin-left: auto;

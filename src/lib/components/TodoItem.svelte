@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { updateTodo, deleteTodo, selectedTodoId, mobileView } from '$lib/stores/todos';
 	import { formatRelativeDate } from '$lib/dates';
+	import { StickyNote } from 'lucide-svelte';
 	import type { Todo } from '$lib/types';
 
 	interface Props {
@@ -114,7 +115,7 @@
 			<span class="title" ondblclick={startEdit}>{todo.title}</span>
 		{/if}
 		{#if todo.notes}
-			<span class="has-notes" title="Has notes">📝</span>
+			<span class="has-notes" title="Has notes"><StickyNote size={14} strokeWidth={2} /></span>
 		{/if}
 	</div>
 
