@@ -156,7 +156,7 @@
 		cursor: pointer;
 		border-radius: var(--radius-lg);
 		box-shadow: var(--shadow-sm);
-		margin-bottom: 2px;
+		margin-bottom: 3px;
 	}
 	.todo-item:hover { background: #f8f9fa; }
 	.todo-item.selected { background: var(--color-primary-light); }

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { createTodo } from '$lib/stores/todos';
+	import { Plus } from 'lucide-svelte';
 
 	interface Props {
 		listId?: string | null;
@@ -27,7 +28,7 @@
 </script>
 
 <div class="add-todo">
-	<span class="plus">+</span>
+	<span class="plus"><Plus size={18} strokeWidth={2} /></span>
 	<input
 		bind:this={inputEl}
 		type="text"
@@ -49,9 +50,8 @@
 		backdrop-filter: blur(4px);
 	}
 	.plus {
-		font-size: 1.3rem;
+		display: flex;
 		color: rgba(255,255,255,0.9);
-		font-weight: 300;
 	}
 	input {
 		flex: 1;
