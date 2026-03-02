@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { lists, createList, deleteList, searchQuery, counts, mobileView, selectedTodoId } from '$lib/stores/todos';
+	import { lists, todos, createList, deleteList, searchQuery, counts, mobileView, selectedTodoId } from '$lib/stores/todos';
 	import { logout } from '$lib/stores/auth';
 	import { page } from '$app/stores';
 	import type { List } from '$lib/types';
@@ -119,6 +119,18 @@
 	{/if}
 
 	<div class="sidebar-footer">
+		<button class="logout-btn" onclick={() => {
+			const data = { lists: $lists, todos: $todos, exported_at: new Date().toISOString() };
+			const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+			const a = document.createElement('a');
+			a.href = URL.createObjectURL(blob);
+			a.download = `wafflelist-export-${new Date().toISOString().slice(0, 10)}.json`;
+			a.click();
+			URL.revokeObjectURL(a.href);
+		}}>
+			<span class="nav-icon">📤</span>
+			<span>Export Data</span>
+		</button>
 		<button class="logout-btn" onclick={logout}>
 			<span class="nav-icon">🔒</span>
 			<span>Lock / Logout</span>
