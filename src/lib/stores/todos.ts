@@ -456,8 +456,11 @@ export function setupSync() {
 
 	// Online/offline tracking
 	function handleOnline() {
-		syncStatus.update(s => ({ ...s, isOnline: true }));
-		flushQueue().then(() => deltaSync());
+		// Don't set isOnline here — let SSE onopen do that
+		// Just trigger a reconnect attempt
+		if (!es || es.readyState === EventSource.CLOSED) {
+			connect();
+		}
 	}
 	function handleOffline() {
 		syncStatus.update(s => ({ ...s, isOnline: false }));

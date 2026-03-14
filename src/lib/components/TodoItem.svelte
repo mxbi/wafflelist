@@ -196,7 +196,7 @@
 		font-size: 0.95rem;
 		color: var(--color-text);
 	}
-	.has-notes { font-size: 0.75rem; }
+	.has-notes { color: var(--color-text-muted); display: flex; align-items: center; }
 
 	.edit-input {
 		flex: 1;
