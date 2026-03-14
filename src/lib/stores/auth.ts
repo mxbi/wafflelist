@@ -48,11 +48,6 @@ export async function tryRestore(): Promise<void> {
 	// Try IndexedDB first
 	const stored = await loadKey();
 	if (stored) {
-		await fetch('/api/auth/login', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ user_id: stored.userId })
-		});
 		localStorage.removeItem(LEGACY_STORAGE_KEY);
 		authState.set({ status: 'unlocked', userId: stored.userId, encryptionKey: stored.key, signingKey: stored.signingKey });
 		return;

@@ -1,8 +1,19 @@
 <script lang="ts">
 	import { background, presetColors, presetGradients } from '$lib/stores/settings';
-	import { lists, todos } from '$lib/stores/todos';
+	import { lists, todos, resetSync } from '$lib/stores/todos';
 	import { logout } from '$lib/stores/auth';
-	import { Download, Lock } from 'lucide-svelte';
+	import { Download, Lock, RefreshCw } from 'lucide-svelte';
+
+	let resetting = $state(false);
+
+	async function handleResetSync() {
+		resetting = true;
+		try {
+			await resetSync();
+		} finally {
+			resetting = false;
+		}
+	}
 
 	interface Props {
 		onclose: () => void;
@@ -72,6 +83,10 @@
 				<button class="action-btn" onclick={exportData}>
 					<Download size={16} strokeWidth={2} />
 					<span>Export Data</span>
+				</button>
+				<button class="action-btn" onclick={handleResetSync} disabled={resetting}>
+					<RefreshCw size={16} strokeWidth={2} />
+					<span>{resetting ? 'Resetting...' : 'Reset Sync'}</span>
 				</button>
 			</section>
 

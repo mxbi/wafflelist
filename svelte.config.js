@@ -11,7 +11,8 @@ const config = {
 				'style-src': ['self', 'unsafe-inline'],
 				'img-src': ['self', 'data:'],
 				'connect-src': ['self'],
-				'font-src': ['self']
+				'font-src': ['self'],
+				'worker-src': ['self']
 			}
 		}
 	}

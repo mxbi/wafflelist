@@ -22,14 +22,14 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS lists (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL REFERENCES users(id),
-  encrypted_blob TEXT NOT NULL,
+  encrypted_blob TEXT,
   updated_at INTEGER NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS todos (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL REFERENCES users(id),
-  encrypted_blob TEXT NOT NULL,
+  encrypted_blob TEXT,
   updated_at INTEGER NOT NULL
 );
 

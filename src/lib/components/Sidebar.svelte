@@ -4,6 +4,8 @@
 	import { Inbox, Star, Calendar, List as ListIcon, AlarmClockOff, Settings, Plus } from 'lucide-svelte';
 	import type { ComponentType } from 'svelte';
 	import SettingsModal from './SettingsModal.svelte';
+	import SyncIndicator from './SyncIndicator.svelte';
+	import UpdatePrompt from './UpdatePrompt.svelte';
 
 	let showSettings = $state(false);
 
@@ -125,7 +127,9 @@
 		</button>
 	{/if}
 
+	<UpdatePrompt />
 	<div class="sidebar-footer">
+		<SyncIndicator />
 		<button class="settings-btn" onclick={() => showSettings = true}>
 			<span class="nav-icon"><Settings size={16} strokeWidth={2} /></span>
 			<span>Settings</span>
