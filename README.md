@@ -1,6 +1,8 @@
 # Wafflelist
 
-Wafflelist is a to-do list application with a focus on speed of use, simplicity and doing the basics really, really well. Its UI/UX is heavily inspired by Wunderlist. It is self-hostable, end-to-end-encrypted, works offline and seamlessly handles multi-device sync without user accounts.
+Wafflelist is a to-do list application with a focus on speed of use, simplicity and doing the basics really, really well. 
+
+Its UI/UX is heavily inspired by Wunderlist. It is self-hostable, end-to-end-encrypted, works offline and seamlessly handles multi-device sync without user accounts.
 
 ![Screenshot](./screenshot.png)
 
@@ -24,7 +26,7 @@ Wafflelist is a to-do list application with a focus on speed of use, simplicity 
 
 **Seed phrase:** When you create a new vault, a random BIP39 12-word mnemonic is generated (128-bit entropy). The phrase never leaves the client.
 
-**Key derivation** — three keys are derived from the seed and remain on the client.
+**Key derivation:** three keys are derived from the seed and remain on the client.
 
 | Key | Algorithm | Salt | Output |
 |-----|-----------|------|--------|
