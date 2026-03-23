@@ -12,6 +12,25 @@
 				showUpdate = true;
 			}
 		});
+
+		navigator.serviceWorker.getRegistration().then((reg) => {
+			if (!reg) return;
+
+			if (reg.waiting) {
+				showUpdate = true;
+				return;
+			}
+
+			reg.addEventListener('updatefound', () => {
+				const newSW = reg.installing;
+				if (!newSW) return;
+				newSW.addEventListener('statechange', () => {
+					if (newSW.state === 'installed' && navigator.serviceWorker.controller) {
+						showUpdate = true;
+					}
+				});
+			});
+		});
 	});
 
 	function reload() {

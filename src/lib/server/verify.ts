@@ -13,8 +13,10 @@ export async function verifyRequest(request: Request): Promise<string> {
 	}
 
 	const ts = Number(timestamp);
-	if (Math.abs(Date.now() - ts) > MAX_AGE_MS) {
-		throw error(401, 'Request timestamp expired');
+	const serverNow = Date.now();
+	const delta = serverNow - ts;
+	if (Math.abs(delta) > MAX_AGE_MS) {
+		throw error(401, `Request timestamp expired: client=${ts} server=${serverNow} delta=${delta}ms`);
 	}
 
 	const user = db.prepare('SELECT signing_public_key FROM users WHERE id = ?').get(userId) as { signing_public_key: string | null } | undefined;
@@ -66,8 +68,10 @@ export async function verifySyncRequest(url: URL): Promise<string> {
 	}
 
 	const ts = Number(timestamp);
-	if (Math.abs(Date.now() - ts) > MAX_AGE_MS) {
-		throw error(401, 'Request timestamp expired');
+	const serverNow = Date.now();
+	const delta = serverNow - ts;
+	if (Math.abs(delta) > MAX_AGE_MS) {
+		throw error(401, `Request timestamp expired: client=${ts} server=${serverNow} delta=${delta}ms`);
 	}
 
 	const user = db.prepare('SELECT signing_public_key FROM users WHERE id = ?').get(userId) as { signing_public_key: string | null } | undefined;
