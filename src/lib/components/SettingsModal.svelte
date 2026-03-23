@@ -1,10 +1,11 @@
 <script lang="ts">
 	import { background, presetColors, presetGradients } from '$lib/stores/settings';
-	import { lists, todos, resetSync } from '$lib/stores/todos';
+	import { lists, todos, resetSync, syncStatus } from '$lib/stores/todos';
 	import { logout } from '$lib/stores/auth';
 	import { Download, Lock, RefreshCw } from 'lucide-svelte';
 
 	let resetting = $state(false);
+	let showLogoutWarning = $state(false);
 
 	async function handleResetSync() {
 		resetting = true;
@@ -12,6 +13,14 @@
 			await resetSync();
 		} finally {
 			resetting = false;
+		}
+	}
+
+	function handleLogout() {
+		if ($syncStatus.pendingCount > 0) {
+			showLogoutWarning = true;
+		} else {
+			logout();
 		}
 	}
 
@@ -94,10 +103,19 @@
 
 			<section>
 				<div class="section-label">Account</div>
-				<button class="action-btn danger" onclick={logout}>
+				<button class="action-btn danger" onclick={handleLogout}>
 					<Lock size={16} strokeWidth={2} />
 					<span>Lock / Logout</span>
 				</button>
+				{#if showLogoutWarning}
+					<div class="logout-warning">
+						<p>You have {$syncStatus.pendingCount} unsynced {$syncStatus.pendingCount === 1 ? 'change' : 'changes'} that will be permanently lost.</p>
+						<div class="warning-actions">
+							<button class="warning-btn" onclick={() => showLogoutWarning = false}>Cancel</button>
+							<button class="warning-btn danger" onclick={logout}>Logout anyway</button>
+						</div>
+					</div>
+				{/if}
 			</section>
 		</div>
 	</div>
@@ -204,4 +222,35 @@
 	.action-btn:hover { background: var(--color-bg-hover); color: var(--color-text); }
 	.action-btn.danger { color: var(--color-danger-dark); }
 	.action-btn.danger:hover { background: #fdf0ee; color: var(--color-danger-dark); }
+
+	.logout-warning {
+		margin-top: 8px;
+		padding: 10px 12px;
+		background: var(--color-danger-bg);
+		border-radius: var(--radius-md);
+		font-size: 0.85rem;
+		color: var(--color-danger-dark);
+	}
+	.logout-warning p { margin-bottom: 8px; }
+	.warning-actions {
+		display: flex;
+		gap: 8px;
+		justify-content: flex-end;
+	}
+	.warning-btn {
+		padding: 4px 12px;
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-md);
+		background: var(--color-bg);
+		color: var(--color-text-secondary);
+		cursor: pointer;
+		font-size: 0.8rem;
+	}
+	.warning-btn:hover { background: var(--color-bg-hover); }
+	.warning-btn.danger {
+		background: var(--color-danger);
+		color: #fff;
+		border-color: var(--color-danger);
+	}
+	.warning-btn.danger:hover { background: var(--color-danger-dark); }
 </style>

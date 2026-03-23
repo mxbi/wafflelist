@@ -2,6 +2,8 @@ import { writable, get } from 'svelte/store';
 import { browser } from '$app/environment';
 import { deriveUserId, deriveEncryptionKey, deriveSigningKeyPair } from '$lib/crypto';
 import { saveKey, loadKey, clearKey } from '$lib/keystore';
+import { clearAllOfflineData } from '$lib/offlinedb';
+import { resetStores } from '$lib/stores/todos';
 
 interface AuthState {
 	status: 'locked' | 'unlocked';
@@ -15,6 +17,12 @@ const LEGACY_STORAGE_KEY = 'wafflelist-phrase';
 export const authState = writable<AuthState>({ status: 'locked', userId: null, encryptionKey: null, signingKey: null });
 
 export async function login(phrase: string): Promise<void> {
+	// Clear any stale state from a previous session
+	if (browser) {
+		resetStores();
+		await clearAllOfflineData();
+	}
+
 	const [userId, encryptionKey, signingKeyPair] = await Promise.all([
 		deriveUserId(phrase),
 		deriveEncryptionKey(phrase),
@@ -37,8 +45,10 @@ export async function login(phrase: string): Promise<void> {
 export async function logout(): Promise<void> {
 	if (browser) {
 		await clearKey();
+		await clearAllOfflineData();
 		localStorage.removeItem(LEGACY_STORAGE_KEY);
 	}
+	resetStores();
 	authState.set({ status: 'locked', userId: null, encryptionKey: null, signingKey: null });
 }
 

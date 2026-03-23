@@ -23,6 +23,15 @@ export const syncStatus = writable<{
 	isOnline: boolean;
 }>({ pendingCount: 0, lastSyncedAt: null, isOnline: typeof navigator !== 'undefined' ? navigator.onLine : true });
 
+export function resetStores() {
+	todos.set([]);
+	lists.set([]);
+	searchQuery.set('');
+	selectedTodoId.set(null);
+	syncStatus.set({ pendingCount: 0, lastSyncedAt: null, isOnline: navigator.onLine });
+	mobileView.set('sidebar');
+}
+
 async function api(path: string, opts?: RequestInit & { headers?: Record<string, string> }) {
 	const { userId, signingKey } = getAuth();
 	const method = opts?.method ?? 'GET';

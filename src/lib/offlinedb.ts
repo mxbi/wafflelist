@@ -159,6 +159,17 @@ export async function clearQueue(): Promise<void> {
 	});
 }
 
+export async function clearAllOfflineData(): Promise<void> {
+	const db = await open();
+	const stores = ['todos', 'lists', 'meta', 'queue'] as const;
+	const t = db.transaction(stores, 'readwrite');
+	for (const name of stores) t.objectStore(name).clear();
+	return new Promise((resolve, reject) => {
+		t.oncomplete = () => { db.close(); resolve(); };
+		t.onerror = () => { db.close(); reject(t.error); };
+	});
+}
+
 /**
  * Collapse queue: per entity_id, keep only the latest mutation.
  * Delete beats everything (if any mutation is delete, keep only delete).
