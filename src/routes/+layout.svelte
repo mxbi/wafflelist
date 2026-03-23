@@ -103,8 +103,12 @@
 		const view = $mobileView;
 		if (Math.abs(dx) > threshold) {
 			if (dx > 0) {
-				if (view === 'detail') mobileView.set('list');
-				else if (view === 'list') mobileView.set('sidebar');
+				if (view === 'detail') {
+					selectedTodoId.set(null);
+					mobileView.set('list');
+				} else if (view === 'list') {
+					mobileView.set('sidebar');
+				}
 			} else {
 				if (view === 'sidebar') mobileView.set('list');
 				else if (view === 'list' && $selectedTodoId) mobileView.set('detail');
@@ -232,41 +236,66 @@
 
 	@media (max-width: 768px) {
 		.app-layout {
-			/* Horizontal strip: all three panes side by side */
-			width: 300%;
-			transition: transform 0.3s ease;
-		}
-
-		.app-layout.swiping {
-			transition: none;
+			position: relative;
 		}
 
 		.app-layout > :global(.sidebar),
 		.app-layout > main,
 		.app-layout > :global(.detail-sidebar) {
-			width: calc(100% / 3);
-			min-width: calc(100% / 3);
-			flex-shrink: 0;
+			position: absolute;
+			top: 0;
+			left: 0;
+			width: 100%;
+			min-width: 100%;
+			height: 100%;
+			transition: transform 0.3s ease;
 		}
 
+		.app-layout.swiping > :global(.sidebar),
+		.app-layout.swiping > main,
+		.app-layout.swiping > :global(.detail-sidebar) {
+			transition: none;
+		}
+
+		/* Sidebar: offscreen left when not active */
 		.app-layout > :global(.sidebar) {
 			display: flex;
+			transform: translateX(-100%);
 		}
-		.app-layout > main {
-			display: block;
+		.app-layout[data-mobile-view='sidebar'] > :global(.sidebar) {
+			transform: translateX(var(--swipe-offset, 0px));
 		}
-		.app-layout > :global(.detail-sidebar) {
-			display: flex;
+		/* Peek sidebar when swiping right from list */
+		.app-layout[data-mobile-view='list'] > :global(.sidebar) {
+			transform: translateX(calc(-100% + var(--swipe-offset, 0px)));
 		}
 
-		.app-layout[data-mobile-view='sidebar'] {
-			transform: translateX(calc(0% + var(--swipe-offset, 0px)));
+		/* Main: default position */
+		.app-layout > main {
+			display: block;
+			transform: translateX(0);
 		}
-		.app-layout[data-mobile-view='list'] {
-			transform: translateX(calc(-33.333% + var(--swipe-offset, 0px)));
+		.app-layout[data-mobile-view='sidebar'] > main {
+			transform: translateX(calc(100% + var(--swipe-offset, 0px)));
 		}
-		.app-layout[data-mobile-view='detail'] {
-			transform: translateX(calc(-66.666% + var(--swipe-offset, 0px)));
+		.app-layout[data-mobile-view='list'] > main {
+			transform: translateX(var(--swipe-offset, 0px));
+		}
+		.app-layout[data-mobile-view='detail'] > main {
+			transform: translateX(calc(-100% + var(--swipe-offset, 0px)));
+		}
+
+		/* Detail: offscreen right when not active */
+		.app-layout > :global(.detail-sidebar) {
+			display: flex;
+			transform: translateX(100%);
+		}
+		.app-layout[data-mobile-view='detail'] > :global(.detail-sidebar) {
+			transform: translateX(var(--swipe-offset, 0px));
+		}
+		/* Peek detail when swiping left from list */
+		.app-layout[data-mobile-view='list'] > :global(.detail-sidebar) {
+			transform: translateX(calc(100% + var(--swipe-offset, 0px)));
 		}
 	}
 </style>
