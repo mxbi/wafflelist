@@ -1,7 +1,7 @@
 import { error } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
 
-const MAX_AGE_MS = 30 * 1000; // 30 seconds
+const MAX_AGE_MS = 5 * 60 * 1000; // 5 minutes
 
 export async function verifyRequest(request: Request): Promise<string> {
 	const userId = request.headers.get('x-user-id');
