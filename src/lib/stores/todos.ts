@@ -86,13 +86,15 @@ export async function loadTodosFromCache() {
 		const { encryptionKey } = getAuth();
 		const rows = await getCached('todos');
 		if (rows.length > 0) {
-			const decrypted = await Promise.all(
+			const results = await Promise.allSettled(
 				rows.filter(r => r.encrypted_blob).map(r => decryptTodo(encryptionKey, r as EncryptedTodo))
 			);
+			const decrypted = results.filter((r): r is PromiseFulfilledResult<Todo> => r.status === 'fulfilled').map(r => r.value);
+			results.filter(r => r.status === 'rejected').forEach(r => console.error('[loadTodosFromCache] decrypt error:', r.reason));
 			todos.set(decrypted);
 		}
-	} catch {
-		// No cache available
+	} catch (e) {
+		console.error('[loadTodosFromCache] error:', e);
 	}
 }
 
@@ -101,21 +103,25 @@ export async function loadListsFromCache() {
 		const { encryptionKey } = getAuth();
 		const rows = await getCached('lists');
 		if (rows.length > 0) {
-			const decrypted = await Promise.all(
+			const results = await Promise.allSettled(
 				rows.filter(r => r.encrypted_blob).map(r => decryptList(encryptionKey, r as EncryptedList))
 			);
+			const decrypted = results.filter((r): r is PromiseFulfilledResult<List> => r.status === 'fulfilled').map(r => r.value);
+			results.filter(r => r.status === 'rejected').forEach(r => console.error('[loadListsFromCache] decrypt error:', r.reason));
 			decrypted.sort((a, b) => a.sort_order - b.sort_order);
 			lists.set(decrypted);
 		}
-	} catch {
-		// No cache available
+	} catch (e) {
+		console.error('[loadListsFromCache] error:', e);
 	}
 }
 
 export async function loadTodos() {
 	const { encryptionKey } = getAuth();
 	const rows: EncryptedTodo[] = await api('/api/todos');
-	const decrypted = await Promise.all(rows.map(r => decryptTodo(encryptionKey, r)));
+	const results = await Promise.allSettled(rows.map(r => decryptTodo(encryptionKey, r)));
+	const decrypted = results.filter((r): r is PromiseFulfilledResult<Todo> => r.status === 'fulfilled').map(r => r.value);
+	results.filter(r => r.status === 'rejected').forEach(r => console.error('[loadTodos] decrypt error:', r.reason));
 	todos.set(decrypted);
 	// Cache and update lastSyncedAt
 	await cacheRows('todos', rows);
@@ -127,7 +133,9 @@ export async function loadTodos() {
 export async function loadLists() {
 	const { encryptionKey } = getAuth();
 	const rows: EncryptedList[] = await api('/api/lists');
-	const decrypted = await Promise.all(rows.map(r => decryptList(encryptionKey, r)));
+	const results = await Promise.allSettled(rows.map(r => decryptList(encryptionKey, r)));
+	const decrypted = results.filter((r): r is PromiseFulfilledResult<List> => r.status === 'fulfilled').map(r => r.value);
+	results.filter(r => r.status === 'rejected').forEach(r => console.error('[loadLists] decrypt error:', r.reason));
 	decrypted.sort((a, b) => a.sort_order - b.sort_order);
 	lists.set(decrypted);
 	await cacheRows('lists', rows);
@@ -139,6 +147,7 @@ export async function loadLists() {
 // --- Delta sync ---
 
 async function deltaSync() {
+	if (isResetting()) return;
 	try {
 		const { encryptionKey } = getAuth();
 		const lastSynced = await getMeta('lastSyncedAt') as number | null;
@@ -159,10 +168,14 @@ async function deltaSync() {
 					// Tombstone — remove locally
 					updated = updated.filter(t => t.id !== row.id);
 				} else {
-					const decrypted = await decryptTodo(encryptionKey, row);
-					const idx = updated.findIndex(t => t.id === row.id);
-					if (idx >= 0) updated[idx] = decrypted;
-					else updated.push(decrypted);
+					try {
+						const decrypted = await decryptTodo(encryptionKey, row);
+						const idx = updated.findIndex(t => t.id === row.id);
+						if (idx >= 0) updated[idx] = decrypted;
+						else updated.push(decrypted);
+					} catch (e) {
+						console.error('[deltaSync] todo decrypt error:', row.id, e);
+					}
 				}
 			}
 			todos.set(updated);
@@ -177,10 +190,14 @@ async function deltaSync() {
 				if (row.encrypted_blob === null) {
 					updated = updated.filter(l => l.id !== row.id);
 				} else {
-					const decrypted = await decryptList(encryptionKey, row);
-					const idx = updated.findIndex(l => l.id === row.id);
-					if (idx >= 0) updated[idx] = decrypted;
-					else updated.push(decrypted);
+					try {
+						const decrypted = await decryptList(encryptionKey, row);
+						const idx = updated.findIndex(l => l.id === row.id);
+						if (idx >= 0) updated[idx] = decrypted;
+						else updated.push(decrypted);
+					} catch (e) {
+						console.error('[deltaSync] list decrypt error:', row.id, e);
+					}
 				}
 			}
 			updated.sort((a, b) => a.sort_order - b.sort_order);
@@ -190,21 +207,50 @@ async function deltaSync() {
 		const now = Date.now();
 		await setMeta('lastSyncedAt', now);
 		syncStatus.update(s => ({ ...s, lastSyncedAt: now, isOnline: true }));
-	} catch {
-		// Delta sync failed — will retry on next reconnect
+	} catch (e) {
+		console.error('[deltaSync] failed:', e);
 	}
 }
 
 // --- Reset sync (full reload from server, clear local state) ---
 
+let _resetting = false;
+export function isResetting() { return _resetting; }
+
 export async function resetSync() {
-	await clearQueue();
-	await clearCached('todos');
-	await clearCached('lists');
-	await setMeta('lastSyncedAt', null);
-	syncStatus.update(s => ({ ...s, pendingCount: 0, lastSyncedAt: null }));
-	await loadLists();
-	await loadTodos();
+	_resetting = true;
+	try {
+		await clearQueue();
+		await clearCached('todos');
+		await clearCached('lists');
+		await setMeta('lastSyncedAt', null);
+		syncStatus.update(s => ({ ...s, pendingCount: 0, lastSyncedAt: null }));
+		// Clear in-memory stores first to avoid stale data if load fails
+		todos.set([]);
+		lists.set([]);
+		// Load both, then set lastSyncedAt once atomically
+		const { encryptionKey } = getAuth();
+		const [todoRows, listRows]: [EncryptedTodo[], EncryptedList[]] = await Promise.all([
+			api('/api/todos'),
+			api('/api/lists')
+		]);
+		const todoResults = await Promise.allSettled(todoRows.map(r => decryptTodo(encryptionKey, r)));
+		const decryptedTodos = todoResults.filter((r): r is PromiseFulfilledResult<Todo> => r.status === 'fulfilled').map(r => r.value);
+		todoResults.filter(r => r.status === 'rejected').forEach(r => console.error('[resetSync] todo decrypt error:', r.reason));
+		const listResults = await Promise.allSettled(listRows.map(r => decryptList(encryptionKey, r)));
+		const decryptedLists = listResults.filter((r): r is PromiseFulfilledResult<List> => r.status === 'fulfilled').map(r => r.value);
+		listResults.filter(r => r.status === 'rejected').forEach(r => console.error('[resetSync] list decrypt error:', r.reason));
+		decryptedLists.sort((a, b) => a.sort_order - b.sort_order);
+		todos.set(decryptedTodos);
+		lists.set(decryptedLists);
+		await cacheRows('todos', todoRows);
+		await cacheRows('lists', listRows);
+		const now = Date.now();
+		await setMeta('lastSyncedAt', now);
+		syncStatus.update(s => ({ ...s, lastSyncedAt: now }));
+	} finally {
+		_resetting = false;
+	}
 }
 
 // --- Queue flusher ---
@@ -489,7 +535,8 @@ export function setupSync() {
 		let sigBuf: ArrayBuffer;
 		try {
 			sigBuf = await crypto.subtle.sign('Ed25519', signingKey, encoded);
-		} catch {
+		} catch (e) {
+			console.error('[setupSync] signing failed:', e);
 			if (!destroyed) reconnectTimer = setTimeout(connect, backoff);
 			return;
 		}
@@ -504,11 +551,12 @@ export function setupSync() {
 		es.onopen = () => {
 			backoff = 1000;
 			syncStatus.update(s => ({ ...s, isOnline: true }));
-			// Delta sync + flush queue on reconnect
-			flushQueue().then(() => deltaSync());
+			// Delta sync + flush queue on reconnect (skip if resetting)
+			if (!isResetting()) flushQueue().then(() => deltaSync());
 		};
 
 		es.onmessage = async (e) => {
+			if (isResetting()) return;
 			const data = JSON.parse(e.data);
 			if (data.type === 'connected') return;
 
@@ -548,8 +596,8 @@ export function setupSync() {
 				const now = Date.now();
 				await setMeta('lastSyncedAt', now);
 				syncStatus.update(s => ({ ...s, lastSyncedAt: now }));
-			} catch {
-				// Can't decrypt — likely belongs to a different user
+			} catch (e) {
+				console.error('[setupSync] SSE message decrypt error:', e);
 			}
 		};
 
@@ -563,7 +611,7 @@ export function setupSync() {
 		};
 	}
 
-	connect().catch(() => {});
+	connect().catch(e => console.error('[setupSync] connect failed:', e));
 
 	// Initialize pending count
 	updatePendingCount();

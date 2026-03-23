@@ -132,8 +132,8 @@
 			loadTodosFromCache();
 			loadListsFromCache();
 			// Then fetch from server in parallel
-			loadLists().catch(() => {});
-			loadTodos().catch(() => {});
+			loadLists().catch(e => console.error('[layout] loadLists failed:', e));
+			loadTodos().catch(e => console.error('[layout] loadTodos failed:', e));
 			const cleanup = setupSync();
 			return cleanup;
 		}
