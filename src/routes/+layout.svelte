@@ -2,7 +2,7 @@
 	import Sidebar from '$lib/components/Sidebar.svelte';
 	import DetailSidebar from '$lib/components/DetailSidebar.svelte';
 	import Login from '$lib/components/Login.svelte';
-	import { loadLists, loadTodos, loadTodosFromCache, loadListsFromCache, setupSync, mobileView, selectedTodoId } from '$lib/stores/todos';
+	import { loadTodosFromCache, loadListsFromCache, setupSync, mobileView, selectedTodoId } from '$lib/stores/todos';
 	import { authState, tryRestore } from '$lib/stores/auth';
 	import { background } from '$lib/stores/settings';
 	import { browser } from '$app/environment';
@@ -128,12 +128,9 @@
 
 	$effect(() => {
 		if ($authState.status === 'unlocked') {
-			// Load from cache first for instant display
+			// Load from cache for instant display; SSE onopen will delta-sync from server
 			loadTodosFromCache();
 			loadListsFromCache();
-			// Then fetch from server in parallel
-			loadLists().catch(e => console.error('[layout] loadLists failed:', e));
-			loadTodos().catch(e => console.error('[layout] loadTodos failed:', e));
 			const cleanup = setupSync();
 			return cleanup;
 		}

@@ -121,7 +121,7 @@ export async function loadTodos() {
 	const rows: EncryptedTodo[] = await api('/api/todos');
 	const results = await Promise.allSettled(rows.map(r => decryptTodo(encryptionKey, r)));
 	const decrypted = results.filter((r): r is PromiseFulfilledResult<Todo> => r.status === 'fulfilled').map(r => r.value);
-	results.filter(r => r.status === 'rejected').forEach(r => console.error('[loadTodos] decrypt error:', r.reason));
+	results.forEach((r, i) => { if (r.status === 'rejected') console.error('[loadTodos] decrypt error, id:', rows[i].id, r.reason); });
 	todos.set(decrypted);
 	// Cache and update lastSyncedAt
 	await cacheRows('todos', rows);
