@@ -7,6 +7,7 @@
 	import { background } from '$lib/stores/settings';
 	import { browser } from '$app/environment';
 	import { onMount } from 'svelte';
+	import { get } from 'svelte/store';
 	import type { Snippet } from 'svelte';
 
 	interface Props {
@@ -81,10 +82,10 @@
 		}
 
 		// Check if this swipe direction has a valid target
-		const view = $mobileView;
+		const view = get(mobileView);
 		const canSwipe =
 			(swipeDirection === 'right' && (view === 'detail' || view === 'list')) ||
-			(swipeDirection === 'left' && ((view === 'sidebar') || (view === 'list' && $selectedTodoId)));
+			(swipeDirection === 'left' && ((view === 'sidebar') || (view === 'list' && get(selectedTodoId))));
 
 		if (!canSwipe) {
 			swiping = false;
@@ -100,7 +101,7 @@
 		const dx = e.changedTouches[0].clientX - touchStartX;
 		const threshold = window.innerWidth * 0.3;
 
-		const view = $mobileView;
+		const view = get(mobileView);
 		if (Math.abs(dx) > threshold) {
 			if (dx > 0) {
 				if (view === 'detail') {
@@ -111,7 +112,7 @@
 				}
 			} else {
 				if (view === 'sidebar') mobileView.set('list');
-				else if (view === 'list' && $selectedTodoId) mobileView.set('detail');
+				else if (view === 'list' && get(selectedTodoId)) mobileView.set('detail');
 			}
 		}
 
@@ -211,6 +212,11 @@
 		margin: 0;
 		padding: 0;
 		box-sizing: border-box;
+	}
+	@media (max-width: 600px) {
+		:global(html) {
+			font-size: 110%;
+		}
 	}
 	:global(html, body) {
 		height: 100%;
