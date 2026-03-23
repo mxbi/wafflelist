@@ -150,7 +150,7 @@
 		border-right: 1px solid var(--color-border);
 		display: flex;
 		flex-direction: column;
-		height: 100vh;
+		height: 100dvh;
 		overflow-y: auto;
 	}
 	.sidebar-header {
@@ -269,6 +269,7 @@
 		margin-top: auto;
 		border-top: 1px solid var(--color-border);
 		padding: 8px;
+		padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
 	}
 	.settings-btn {
 		display: flex;

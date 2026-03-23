@@ -2,9 +2,10 @@
 	import Sidebar from '$lib/components/Sidebar.svelte';
 	import DetailSidebar from '$lib/components/DetailSidebar.svelte';
 	import Login from '$lib/components/Login.svelte';
-	import { loadLists, loadTodos, loadTodosFromCache, loadListsFromCache, setupSync, mobileView } from '$lib/stores/todos';
+	import { loadLists, loadTodos, loadTodosFromCache, loadListsFromCache, setupSync, mobileView, selectedTodoId } from '$lib/stores/todos';
 	import { authState, tryRestore } from '$lib/stores/auth';
 	import { background } from '$lib/stores/settings';
+	import { browser } from '$app/environment';
 	import { onMount } from 'svelte';
 	import type { Snippet } from 'svelte';
 
@@ -20,6 +21,57 @@
 	);
 
 	let ready = $state(false);
+
+	// Update theme-color meta tag based on current mobile view
+	const themeColorMap: Record<string, string> = {
+		sidebar: '#ffffff',
+		detail: '#fafbfc'
+	};
+
+	$effect(() => {
+		if (!browser) return;
+		const meta = document.querySelector('meta[name="theme-color"]');
+		if (!meta) return;
+		const view = $mobileView;
+		if (view === 'list') {
+			// Extract first color from background (solid or gradient)
+			const bg = $background;
+			const match = bg.match(/#[0-9a-fA-F]{6}/);
+			meta.setAttribute('content', match ? match[0] : '#2B579A');
+		} else {
+			meta.setAttribute('content', themeColorMap[view] ?? '#2B579A');
+		}
+	});
+
+	// Swipe gesture handling for mobile navigation
+	let touchStartX = 0;
+	let touchStartY = 0;
+
+	function handleTouchStart(e: TouchEvent) {
+		touchStartX = e.touches[0].clientX;
+		touchStartY = e.touches[0].clientY;
+	}
+
+	function handleTouchEnd(e: TouchEvent) {
+		const dx = e.changedTouches[0].clientX - touchStartX;
+		const dy = e.changedTouches[0].clientY - touchStartY;
+		const absDx = Math.abs(dx);
+		const absDy = Math.abs(dy);
+
+		// Require horizontal swipe: min 60px, more horizontal than vertical
+		if (absDx < 60 || absDy > absDx * 0.75) return;
+
+		const view = $mobileView;
+		if (dx > 0) {
+			// Swipe right → go back
+			if (view === 'detail') mobileView.set('list');
+			else if (view === 'list') mobileView.set('sidebar');
+		} else {
+			// Swipe left → go forward (only detail if a todo is selected)
+			if (view === 'sidebar') mobileView.set('list');
+			else if (view === 'list' && $selectedTodoId) mobileView.set('detail');
+		}
+	}
 
 	onMount(async () => {
 		await tryRestore();
@@ -45,7 +97,8 @@
 {:else if $authState.status === 'locked'}
 	<Login />
 {:else}
-	<div class="app-layout" data-mobile-view={$mobileView}>
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<div class="app-layout" data-mobile-view={$mobileView} ontouchstart={handleTouchStart} ontouchend={handleTouchEnd}>
 		<Sidebar />
 		<main style={bgStyle}>
 			{@render children()}
@@ -107,10 +160,11 @@
 	:global(body) {
 		font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 		-webkit-font-smoothing: antialiased;
+		touch-action: manipulation;
 	}
 	.app-layout {
 		display: flex;
-		height: 100vh;
+		height: 100dvh;
 		overflow: hidden;
 	}
 	main {

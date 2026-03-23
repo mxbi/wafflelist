@@ -158,7 +158,7 @@
 		border-left: 1px solid var(--color-border-subtle);
 		display: flex;
 		flex-direction: column;
-		height: 100vh;
+		height: 100dvh;
 		overflow-y: auto;
 	}
 
@@ -296,6 +296,7 @@
 		justify-content: space-between;
 		align-items: center;
 		padding: 12px 16px;
+		padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
 		border-top: 1px solid #eee;
 	}
 	.created-at {

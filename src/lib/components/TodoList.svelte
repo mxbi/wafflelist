@@ -235,7 +235,7 @@
 		flex: 1;
 		display: flex;
 		flex-direction: column;
-		height: 100vh;
+		height: 100dvh;
 		overflow-y: auto;
 	}
 	.list-header {
@@ -283,6 +283,7 @@
 	.list-content {
 		flex: 1;
 		padding: 0 24px 24px;
+		padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
 		min-height: 0;
 	}
 	.empty {
