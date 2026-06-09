@@ -1,0 +1,43 @@
+{
+  "name": "wafflelist-pebble",
+  "author": "mxbi",
+  "version": "1.0.0",
+  "private": true,
+  "keywords": [
+    "pebble-app"
+  ],
+  "dependencies": {},
+  "scripts": {
+    "test": "node test/crypto.test.cjs"
+  },
+  "pebble": {
+    "displayName": "Wafflelist",
+    "uuid": "9b1f86f5-6b4e-4d8e-9a6e-1c2a7d3e5f08",
+    "sdkVersion": "3",
+    "enableMultiJS": true,
+    "targetPlatforms": [
+      "basalt",
+      "chalk",
+      "diorite",
+      "emery"
+    ],
+    "watchapp": {
+      "watchface": false
+    },
+    "capabilities": [
+      "configurable"
+    ],
+    "messageKeys": [
+      "Request",
+      "AddTodo",
+      "Complete",
+      "Count",
+      "Index",
+      "Title",
+      "Status"
+    ],
+    "resources": {
+      "media": []
+    }
+  }
+}
