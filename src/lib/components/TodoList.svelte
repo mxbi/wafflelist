@@ -85,15 +85,12 @@
 		dragOverId = null;
 	}
 
-	function handleDrop(e: DragEvent, targetId: string) {
-		e.preventDefault();
-		const dropAbove = dragPosition === 'above';
-		dragOverId = null;
-		if (!reorderable || !draggedId || draggedId === targetId) return;
-
+	// Shared reorder commit used by both the desktop (HTML5 DnD) and mobile (touch) paths.
+	function commitReorder(movedId: string, targetId: string, dropAbove: boolean) {
+		if (movedId === targetId) return;
 		const items = activeTodos;
 		const targetIdx = items.findIndex(t => t.id === targetId);
-		const dragIdx = items.findIndex(t => t.id === draggedId);
+		const dragIdx = items.findIndex(t => t.id === movedId);
 		if (targetIdx === -1 || dragIdx === -1) return;
 
 		let newOrder: number;
@@ -107,9 +104,18 @@
 			newOrder = (items[targetIdx].sort_order + next) / 2;
 		}
 
+		updateTodo(movedId, { sort_order: newOrder });
+	}
+
+	function handleDrop(e: DragEvent, targetId: string) {
+		e.preventDefault();
+		const dropAbove = dragPosition === 'above';
+		dragOverId = null;
+		if (!reorderable || !draggedId || draggedId === targetId) return;
+
 		const movedId = draggedId;
 		draggedId = null;
-		updateTodo(movedId, { sort_order: newOrder });
+		commitReorder(movedId, targetId, dropAbove);
 	}
 
 	function handleEdgeDragOver(e: DragEvent, zone: 'top' | 'bottom') {
@@ -148,6 +154,165 @@
 		draggedId = null;
 		dragOverId = null;
 		edgeDropZone = null;
+	}
+
+	// --- Touch-based reordering (iOS/Android) ---
+	// iOS Safari does not support the HTML5 drag-and-drop API for touch input, so
+	// the desktop handlers above never fire. This Svelte action implements an
+	// equivalent long-press-then-drag gesture on touch devices. It reuses the same
+	// draggedId / dragOverId / dragPosition state and commitReorder() logic, so the
+	// visual feedback and drop behaviour match the desktop path exactly.
+	function touchReorder(node: HTMLElement) {
+		const LONG_PRESS_MS = 250;
+		const MOVE_TOLERANCE = 8;
+		const SCROLL_EDGE = 60;
+
+		let pressTimer: ReturnType<typeof setTimeout> | null = null;
+		let activeId: string | null = null;
+		let dragging = false;
+		let startX = 0;
+		let startY = 0;
+		let lastX = 0;
+		let lastY = 0;
+		let scrollContainer: HTMLElement | null = null;
+		let scrollVel = 0;
+		let scrollRAF = 0;
+
+		function itemIdFrom(target: EventTarget | null): string | null {
+			const el = (target as HTMLElement | null)?.closest?.('[data-todo-id]') as HTMLElement | null;
+			return el?.getAttribute('data-todo-id') ?? null;
+		}
+
+		function cancelPress() {
+			if (pressTimer) {
+				clearTimeout(pressTimer);
+				pressTimer = null;
+			}
+		}
+
+		function updateDropTarget() {
+			const el = document.elementFromPoint(lastX, lastY);
+			const overId = itemIdFrom(el);
+			if (!overId || overId === draggedId) return;
+			// Only react to active (reorderable) todos, not completed ones.
+			if (!activeTodos.some((t) => t.id === overId)) return;
+			const itemEl = (el as HTMLElement).closest('[data-todo-id]') as HTMLElement;
+			const rect = itemEl.getBoundingClientRect();
+			dragOverId = overId;
+			dragPosition = lastY < rect.top + rect.height / 2 ? 'above' : 'below';
+		}
+
+		function stopAutoScroll() {
+			scrollVel = 0;
+			if (scrollRAF) {
+				cancelAnimationFrame(scrollRAF);
+				scrollRAF = 0;
+			}
+		}
+
+		function autoScrollStep() {
+			if (!dragging || scrollVel === 0 || !scrollContainer) {
+				scrollRAF = 0;
+				return;
+			}
+			scrollContainer.scrollTop += scrollVel;
+			updateDropTarget();
+			scrollRAF = requestAnimationFrame(autoScrollStep);
+		}
+
+		function maybeAutoScroll() {
+			scrollContainer ??= node.closest('.todo-list') as HTMLElement | null;
+			if (!scrollContainer) return;
+			const rect = scrollContainer.getBoundingClientRect();
+			if (lastY < rect.top + SCROLL_EDGE) {
+				scrollVel = -Math.ceil((rect.top + SCROLL_EDGE - lastY) / 6);
+			} else if (lastY > rect.bottom - SCROLL_EDGE) {
+				scrollVel = Math.ceil((lastY - (rect.bottom - SCROLL_EDGE)) / 6);
+			} else {
+				scrollVel = 0;
+			}
+			if (scrollVel !== 0 && !scrollRAF) {
+				scrollRAF = requestAnimationFrame(autoScrollStep);
+			}
+		}
+
+		function reset() {
+			cancelPress();
+			stopAutoScroll();
+			dragging = false;
+			activeId = null;
+			draggedId = null;
+			dragOverId = null;
+		}
+
+		function onTouchStart(e: TouchEvent) {
+			if (!reorderable || e.touches.length !== 1) return;
+			const id = itemIdFrom(e.target);
+			if (!id) return;
+			const t = e.touches[0];
+			startX = lastX = t.clientX;
+			startY = lastY = t.clientY;
+			activeId = id;
+			cancelPress();
+			pressTimer = setTimeout(() => {
+				pressTimer = null;
+				dragging = true;
+				draggedId = activeId;
+				try {
+					navigator.vibrate?.(10);
+				} catch {
+					/* not supported */
+				}
+			}, LONG_PRESS_MS);
+		}
+
+		function onTouchMove(e: TouchEvent) {
+			if (!activeId) return;
+			const t = e.touches[0];
+			lastX = t.clientX;
+			lastY = t.clientY;
+
+			if (!dragging) {
+				// Moving before the long-press fires means the user is scrolling.
+				if (Math.abs(t.clientX - startX) > MOVE_TOLERANCE || Math.abs(t.clientY - startY) > MOVE_TOLERANCE) {
+					cancelPress();
+					activeId = null;
+				}
+				return;
+			}
+
+			// Actively dragging: take over the gesture from scroll/swipe navigation.
+			e.preventDefault();
+			e.stopPropagation();
+			updateDropTarget();
+			maybeAutoScroll();
+		}
+
+		function onTouchEnd(e: TouchEvent) {
+			if (dragging) {
+				// Suppress the synthesized click that would otherwise select the todo.
+				e.preventDefault();
+				if (draggedId && dragOverId && draggedId !== dragOverId) {
+					commitReorder(draggedId, dragOverId, dragPosition === 'above');
+				}
+			}
+			reset();
+		}
+
+		node.addEventListener('touchstart', onTouchStart, { passive: true });
+		node.addEventListener('touchmove', onTouchMove, { passive: false });
+		node.addEventListener('touchend', onTouchEnd);
+		node.addEventListener('touchcancel', reset);
+
+		return {
+			destroy() {
+				reset();
+				node.removeEventListener('touchstart', onTouchStart);
+				node.removeEventListener('touchmove', onTouchMove);
+				node.removeEventListener('touchend', onTouchEnd);
+				node.removeEventListener('touchcancel', reset);
+			}
+		};
 	}
 </script>
 
@@ -193,7 +358,7 @@
 					ondrop={(e) => handleEdgeDrop(e, 'bottom')}
 				></div>
 			{/if}
-			<div class="items">
+			<div class="items" use:touchReorder>
 				{#each activeTodos as todo (todo.id)}
 					<TodoItem
 						{todo}
@@ -204,6 +369,7 @@
 						ondrop={(e) => handleDrop(e, todo.id)}
 						ondragend={handleDragEnd}
 						dragOverPosition={dragOverId === todo.id ? dragPosition : null}
+						dragging={draggedId === todo.id}
 					/>
 				{/each}
 

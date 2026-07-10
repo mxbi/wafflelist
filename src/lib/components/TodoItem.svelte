@@ -13,8 +13,9 @@
 		ondrop?: (e: DragEvent) => void;
 		ondragend?: () => void;
 		dragOverPosition?: 'above' | 'below' | null;
+		dragging?: boolean;
 	}
-	let { todo, draggable = false, ondragstart, ondragover, ondragleave, ondrop, ondragend, dragOverPosition = null }: Props = $props();
+	let { todo, draggable = false, ondragstart, ondragover, ondragleave, ondrop, ondragend, dragOverPosition = null, dragging = false }: Props = $props();
 
 	let editing = $state(false);
 	let editTitle = $state('');
@@ -83,6 +84,8 @@
 	class:selected={isSelected}
 	class:drag-over-above={dragOverPosition === 'above'}
 	class:drag-over-below={dragOverPosition === 'below'}
+	class:dragging
+	data-todo-id={todo.id}
 	onclick={selectTodo}
 	oncontextmenu={handleContextMenu}
 	draggable={draggable ? 'true' : undefined}
@@ -174,6 +177,14 @@
 	}
 	.todo-item[draggable="true"]:active {
 		cursor: grabbing;
+	}
+	.todo-item[draggable="true"] {
+		-webkit-user-select: none;
+		user-select: none;
+		-webkit-touch-callout: none;
+	}
+	.todo-item.dragging {
+		opacity: 0.45;
 	}
 
 	.checkbox {
