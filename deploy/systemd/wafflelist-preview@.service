@@ -1,0 +1,81 @@
+[Unit]
+Description=Wafflelist preview for PR %i
+Documentation=https://github.com/mxbi/wafflelist
+After=network-online.target
+Wants=network-online.target
+
+# Give up on a crash-looping preview instead of restarting forever.
+StartLimitIntervalSec=120
+StartLimitBurst=5
+
+[Service]
+Type=simple
+
+# Distinct from the production user. The production data directory is mode 0700
+# owned by `wafflelist`, so this user cannot read the real database even if the
+# sandboxing below were removed.
+User=wafflelist-preview
+Group=wafflelist-preview
+
+# Per-PR cwd, so each preview creates and uses its own data/wafflelist.db.
+WorkingDirectory=/srv/wafflelist/previews/pr-%i
+ExecStart=/usr/bin/node current/build/index.js
+EnvironmentFile=/etc/wafflelist/previews/pr-%i.env
+
+Restart=on-failure
+RestartSec=2
+KillSignal=SIGINT
+TimeoutStopSec=10
+
+# --- sandboxing -----------------------------------------------------------
+# Preview code is unreviewed by definition, so this is deliberately tighter
+# than production.
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+# If a preview ever fails to start with an opaque namespace error, this is the
+# first line to drop - the separate unix user plus InaccessiblePaths below
+# already provide the database guarantee on their own.
+PrivateUsers=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectClock=true
+ProtectHostname=true
+ProtectKernelLogs=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+ProtectProc=invisible
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RemoveIPC=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+SystemCallArchitectures=native
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+MemoryDenyWriteExecute=false
+
+# This preview's own directory is the only writable path.
+ReadWritePaths=/srv/wafflelist/previews/pr-%i
+
+# Belt and braces: even a misconfigured permission cannot expose production,
+# and previews cannot see each other.
+InaccessiblePaths=/srv/wafflelist/production
+InaccessiblePaths=-/srv/wafflelist/incoming
+
+# The app needs no outbound network, so only loopback is reachable. This blocks
+# server-side exfiltration from preview code. Comment out if your systemd build
+# lacks BPF firewalling support.
+IPAddressAllow=localhost
+IPAddressDeny=any
+
+# Previews are throwaway; keep them small so several can run at once.
+MemoryMax=384M
+TasksMax=128
+
+[Install]
+WantedBy=multi-user.target

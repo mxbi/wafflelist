@@ -1,0 +1,7 @@
+[Unit]
+Description=Snapshot the Wafflelist production database
+Documentation=https://github.com/mxbi/wafflelist
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/wafflelist-ctl backup

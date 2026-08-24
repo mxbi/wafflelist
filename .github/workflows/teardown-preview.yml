@@ -1,0 +1,51 @@
+name: Teardown PR preview
+
+# Removes a preview when its PR closes or the `preview` label is taken off.
+# This job runs no PR code at all - it only sends a PR number over SSH.
+# wafflelist-ctl gc (a daily timer on the VPS) is the backstop for events that
+# never arrive.
+
+on:
+  pull_request_target:
+    types: [closed, unlabeled]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  teardown:
+    name: Remove preview
+    # On `unlabeled`, only act when the removed label was `preview`.
+    if: >-
+      github.event.action == 'closed' ||
+      github.event.label.name == 'preview'
+    runs-on: ubuntu-latest
+    environment: preview
+    steps:
+      - name: Configure SSH
+        env:
+          SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.VPS_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Teardown
+        env:
+          HOST: ${{ secrets.VPS_HOST }}
+          USER: ${{ secrets.VPS_USER }}
+          SSH_PORT: ${{ vars.VPS_SSH_PORT || '22' }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_deploy -p "$SSH_PORT" -o IdentitiesOnly=yes \
+            "$USER@$HOST" \
+            "sudo /usr/local/bin/wafflelist-ctl teardown-preview --pr '$PR'"

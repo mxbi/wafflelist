@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  workflow-guards:
+    name: Deploy workflow guards
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pyyaml
+        run: pip install --quiet pyyaml
+      - name: Check PR preview isolation
+        run: python3 .github/scripts/check-preview-isolation.py
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run build
+
+      - name: Smoke test the built server
+        run: |
+          set -euo pipefail
+          PORT=31999 HOST=127.0.0.1 node build/index.js &
+          server=$!
+          trap 'kill $server 2>/dev/null || true' EXIT
+
+          for _ in $(seq 1 30); do
+            if curl -fsS --max-time 2 -o /dev/null http://127.0.0.1:31999/; then
+              echo "server responded"
+              exit 0
+            fi
+            sleep 1
+          done
+
+          echo "server did not become healthy" >&2
+          exit 1

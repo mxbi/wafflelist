@@ -1,0 +1,632 @@
+#!/usr/bin/env bash
+#
+# wafflelist-ctl - deploy/teardown helper that runs on the VPS.
+#
+# Invoked over SSH by GitHub Actions as:
+#   sudo /usr/local/bin/wafflelist-ctl deploy-production --sha <sha> --tarball <name>
+#   sudo /usr/local/bin/wafflelist-ctl deploy-preview --pr <n> --sha <sha> \
+#        --tarball <name> --domain <preview.example.com>
+#   sudo /usr/local/bin/wafflelist-ctl teardown-preview --pr <n>
+#
+# The deploy user gets passwordless sudo for this one script, so every argument
+# is validated strictly and tarballs are only ever read from $INCOMING_DIR.
+#
+# Isolation model
+# ---------------
+# Production and previews are separate directory trees owned by separate unix
+# users. The production data directory is mode 0700 and owned by $PROD_USER,
+# which the preview user is not a member of, so preview code (including npm
+# lifecycle scripts) cannot open the production database. The preview systemd
+# unit additionally marks the production tree inaccessible.
+
+set -euo pipefail
+
+CONF_DIR=${WAFFLELIST_CONF_DIR:-/etc/wafflelist}
+
+# Optional local overrides. Sourced before the derived paths below are computed,
+# so setting just ROOT_DIR in ctl.conf relocates the whole layout.
+# shellcheck source=/dev/null
+[ -r "$CONF_DIR/ctl.conf" ] && . "$CONF_DIR/ctl.conf"
+
+: "${ROOT_DIR:=/srv/wafflelist}"
+: "${PROD_DIR:=$ROOT_DIR/production}"
+: "${PREVIEWS_DIR:=$ROOT_DIR/previews}"
+: "${INCOMING_DIR:=$ROOT_DIR/incoming}"
+: "${CADDY_SNIPPET_DIR:=/etc/caddy/wafflelist-previews}"
+
+: "${PROD_USER:=wafflelist}"
+: "${PREVIEW_USER:=wafflelist-preview}"
+
+# The one node binary used for EVERYTHING: installing dependencies, verifying a
+# release, taking backups, and (via the systemd drop-in written by install.sh)
+# running the service. better-sqlite3 is a native module compiled per Node ABI,
+# so installing under one node and running under another produces a release that
+# starts fine and then fails on every database call. install.sh writes the
+# resolved path here; the fallback only matters if ctl.conf is missing.
+: "${NODE_BIN:=$(command -v node 2>/dev/null || echo /usr/bin/node)}"
+NODE_DIR=$(dirname "$NODE_BIN")
+
+: "${PREVIEW_PORT_BASE:=31000}"
+: "${PREVIEW_PR_MAX:=1999}"
+: "${KEEP_RELEASES:=5}"
+: "${KEEP_BACKUPS:=14}"
+: "${PREVIEW_MAX_AGE_DAYS:=14}"
+: "${HEALTH_TIMEOUT:=60}"
+
+log() { printf '==> %s\n' "$*"; }
+warn() { printf 'warning: %s\n' "$*" >&2; }
+die() { printf 'error: %s\n' "$*" >&2; exit 1; }
+
+require_root() {
+	[ "$(id -u)" -eq 0 ] || die "must run as root (use sudo)"
+}
+
+# ---------------------------------------------------------------- validation
+
+validate_pr() {
+	local pr=$1
+	[[ $pr =~ ^[1-9][0-9]{0,3}$ ]] || die "invalid PR number: $pr"
+	[ "$pr" -le "$PREVIEW_PR_MAX" ] ||
+		die "PR $pr exceeds the port range (max $PREVIEW_PR_MAX); raise PREVIEW_PORT_BASE/PREVIEW_PR_MAX in $CONF_DIR/ctl.conf"
+}
+
+validate_sha() {
+	[[ $1 =~ ^[0-9a-f]{7,40}$ ]] || die "invalid commit sha: $1"
+}
+
+validate_domain() {
+	[[ $1 =~ ^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$ ]] || die "invalid domain: $1"
+}
+
+# Tarballs are referenced by basename only and must live in $INCOMING_DIR, so a
+# compromised deploy key cannot make this script read arbitrary paths as root.
+resolve_tarball() {
+	local name=$1 path
+	[[ $name =~ ^release-[0-9a-f]{7,40}\.tar\.gz$ ]] || die "invalid tarball name: $name"
+	path="$INCOMING_DIR/$name"
+	[ -f "$path" ] || die "tarball not found: $path"
+	tar -tzf "$path" >/dev/null 2>&1 || die "tarball is not a readable gzip archive: $path"
+	printf '%s' "$path"
+}
+
+# ------------------------------------------------------------------- helpers
+
+env_get() {
+	local file=$1 key=$2
+	[ -r "$file" ] || return 1
+	sed -n "s/^${key}=//p" "$file" | tail -n1
+}
+
+as_user() {
+	local user=$1
+	shift
+	# $NODE_DIR first: `npm` is a node script, and it must run under the same
+	# node the service will use, or native modules are built for the wrong ABI.
+	runuser -u "$user" -- env \
+		PATH="$NODE_DIR:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
+		"$@"
+}
+
+# Wait for the freshly restarted service to become both live and ready.
+#
+# Two probes, because they fail independently:
+#
+#   GET /            liveness. Cheap, but too weak on its own: SvelteKit's node
+#                    adapter imports route chunks lazily and the app opens the
+#                    database lazily, so / answers 200 even when API routes and
+#                    the database are completely broken.
+#
+#   GET /api/sync    readiness. With a fresh timestamp and an unknown user this
+#                    loads the route's server chunk and runs a SELECT against
+#                    the database, then rejects the unsigned request with 401.
+#                    So 401 means "routes load and the database answers", while
+#                    500 means the release is broken. It writes nothing.
+health_check() {
+	local port=$1 label=$2 i code
+	local unknown_user probe
+	unknown_user=$(printf '0%.0s' $(seq 1 64))
+
+	log "health-checking $label on port $port"
+
+	local live=0
+	for ((i = 0; i < HEALTH_TIMEOUT; i++)); do
+		# -fs (not -fsS): stay quiet while polling, we report our own result.
+		if curl -fs --noproxy '*' --max-time 2 -o /dev/null "http://127.0.0.1:$port/"; then
+			live=1
+			break
+		fi
+		sleep 1
+	done
+	if [ "$live" -ne 1 ]; then
+		warn "$label never answered on /"
+		return 1
+	fi
+
+	for ((i = 0; i < 10; i++)); do
+		probe="http://127.0.0.1:$port/api/sync?user_id=$unknown_user&ts=$(date +%s)000&sig=AA"
+		code=$(curl -s --noproxy '*' --max-time 5 -o /dev/null -w '%{http_code}' "$probe" || echo 000)
+		if [ "$code" = "401" ]; then
+			log "$label is healthy"
+			return 0
+		fi
+		sleep 1
+	done
+
+	warn "$label answered / but /api/sync returned $code (expected 401); routes or the database are broken"
+	return 1
+}
+
+# Sets RELEASE_NAME to the created release directory name.
+RELEASE_NAME=''
+install_release() {
+	local base_dir=$1 user=$2 sha=$3 tarball=$4
+	[ -x "$NODE_BIN" ] || die "NODE_BIN ($NODE_BIN) is not executable; set it in $CONF_DIR/ctl.conf"
+
+	# Timestamp-prefixed so redeploying the same commit never overwrites the
+	# release directory that is currently live.
+	RELEASE_NAME="$(date -u +%Y%m%d%H%M%S)-$sha"
+	local release_dir="$base_dir/releases/$RELEASE_NAME"
+
+	log "unpacking release $sha into $release_dir"
+	rm -rf "$release_dir"
+	mkdir -p "$release_dir" "$base_dir/.npm-home" "$base_dir/.npm-cache"
+	chown "$user:$user" "$base_dir/.npm-home" "$base_dir/.npm-cache"
+	tar -xzf "$tarball" -C "$release_dir"
+	[ -f "$release_dir/build/index.js" ] || die "release is missing build/index.js"
+	[ -f "$release_dir/package-lock.json" ] || die "release is missing package-lock.json"
+	chown -R "$user:$user" "$release_dir"
+
+	# Runtime deps only. Runs as $user with a per-user npm cache/home so that
+	# package lifecycle scripts inherit that user's (limited) privileges.
+	log "installing runtime dependencies as $user"
+	as_user "$user" HOME="$base_dir/.npm-home" npm_config_cache="$base_dir/.npm-cache" \
+		npm ci --omit=dev --no-audit --no-fund --prefix "$release_dir" ||
+		die "npm ci failed for release $sha"
+}
+
+# Prove the release actually works before it goes live.
+#
+# The HTTP health check alone is not enough: the app opens the database lazily,
+# so GET / returns 200 even when better-sqlite3 cannot load at all (which is
+# exactly what happens when the host's Node major changes and the native module
+# was built for a different ABI). This loads the native module the way the app
+# will and writes a throwaway database in the real data directory, so both ABI
+# mismatches and permission problems fail the deploy *before* the swap, while
+# the previous release is still serving.
+verify_release() {
+	local base_dir=$1 user=$2 release_dir=$3 helper
+	log "verifying native modules and data directory"
+
+	helper=$(mktemp /tmp/wafflelist-verify-XXXXXX.cjs)
+	chmod 644 "$helper"
+	cat >"$helper" <<'JS'
+const fs = require('fs');
+const path = require('path');
+const Database = require('better-sqlite3');
+
+const probe = path.join(process.argv[2], '.deploy-probe.db');
+for (const suffix of ['', '-wal', '-shm']) {
+	try {
+		fs.unlinkSync(probe + suffix);
+	} catch {}
+}
+
+const db = new Database(probe);
+db.pragma('journal_mode = WAL');
+db.exec('CREATE TABLE probe (id INTEGER PRIMARY KEY)');
+db.prepare('INSERT INTO probe (id) VALUES (1)').run();
+if (db.prepare('SELECT count(*) AS n FROM probe').get().n !== 1) {
+	throw new Error('probe query returned unexpected result');
+}
+db.close();
+
+for (const suffix of ['', '-wal', '-shm']) {
+	try {
+		fs.unlinkSync(probe + suffix);
+	} catch {}
+}
+JS
+
+	# "$NODE_BIN" explicitly, never a bare `node`: verifying under a different
+	# node than the service uses is exactly the bug this check exists to catch.
+	if ! as_user "$user" NODE_PATH="$release_dir/node_modules" \
+		"$NODE_BIN" "$helper" "$base_dir/data"; then
+		rm -f "$helper"
+		die "release verification failed under $NODE_BIN: better-sqlite3 could not load, or the data directory is not writable. If this mentions NODE_MODULE_VERSION, the module was built for a different Node ABI than the service runs - set NODE_BIN in $CONF_DIR/ctl.conf and re-run install.sh. Nothing was swapped; the previous release is still live."
+	fi
+	rm -f "$helper"
+}
+
+# Atomically repoint <base>/current at the new release.
+swap_current() {
+	local base_dir=$1 user=$2 release=$3
+	ln -sfn "releases/$release" "$base_dir/current.new"
+	mv -Tf "$base_dir/current.new" "$base_dir/current"
+	chown -h "$user:$user" "$base_dir/current"
+}
+
+prune_releases() {
+	local base_dir=$1 current n=0
+	current=$(readlink "$base_dir/current" 2>/dev/null || true)
+	# Newest first; always keep whatever `current` points at.
+	while IFS= read -r dir; do
+		[ -n "$dir" ] || continue
+		local name
+		name=$(basename "$dir")
+		if [ "releases/$name" = "$current" ]; then
+			continue
+		fi
+		n=$((n + 1))
+		if [ "$n" -ge "$KEEP_RELEASES" ]; then
+			log "pruning old release $name"
+			rm -rf "$dir"
+		fi
+	done < <(find "$base_dir/releases" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' 2>/dev/null |
+		sort -rn | cut -d' ' -f2-)
+}
+
+# ---------------------------------------------------------------- production
+
+# Usage: backup_production_db [node_modules_dir]
+# The optional directory is searched for better-sqlite3 first, so the very first
+# deploy (where $PROD_DIR/current does not exist yet, but a migrated database
+# does) can still take a backup using the release being installed.
+backup_production_db() {
+	local modules=${1:-}
+	local db="$PROD_DIR/data/wafflelist.db" out ts
+	if [ ! -f "$db" ]; then
+		log "no production database yet, skipping backup"
+		return 0
+	fi
+
+	mkdir -p "$PROD_DIR/backups"
+	chown "$PROD_USER:$PROD_USER" "$PROD_DIR/backups"
+	chmod 700 "$PROD_DIR/backups"
+
+	ts=$(date -u +%Y%m%dT%H%M%SZ)
+	out="$PROD_DIR/backups/wafflelist-$ts.db"
+	log "backing up production database to $out"
+
+	# better-sqlite3 is a runtime dependency, so it is always available; the
+	# sqlite3 CLI often is not. Both take a consistent snapshot of a live WAL
+	# database and then verify the result.
+	local helper
+	helper=$(mktemp /tmp/wafflelist-backup-XXXXXX.cjs)
+	chmod 644 "$helper"
+	cat >"$helper" <<'JS'
+const Database = require('better-sqlite3');
+const [src, dest] = process.argv.slice(2);
+const db = new Database(src, { readonly: true });
+db.backup(dest)
+	.then(() => {
+		db.close();
+		const copy = new Database(dest, { readonly: true });
+		const result = copy.pragma('integrity_check', { simple: true });
+		copy.close();
+		if (result !== 'ok') {
+			console.error(`integrity_check failed: ${result}`);
+			process.exit(1);
+		}
+	})
+	.catch((err) => {
+		console.error(err);
+		process.exit(1);
+	});
+JS
+
+	local node_path=''
+	for candidate in "$modules" "$PROD_DIR/current/node_modules"; do
+		if [ -n "$candidate" ] && [ -d "$candidate/better-sqlite3" ]; then
+			node_path=$candidate
+			break
+		fi
+	done
+
+	if [ -n "$node_path" ]; then
+		as_user "$PROD_USER" NODE_PATH="$node_path" \
+			"$NODE_BIN" "$helper" "$db" "$out" || { rm -f "$helper"; die "database backup failed"; }
+	elif command -v sqlite3 >/dev/null 2>&1; then
+		as_user "$PROD_USER" sqlite3 "file:$db?mode=ro" "VACUUM INTO '$out'" ||
+			{ rm -f "$helper"; die "database backup failed"; }
+		local check
+		check=$(as_user "$PROD_USER" sqlite3 "$out" 'PRAGMA integrity_check;' | head -n1)
+		[ "$check" = "ok" ] || { rm -f "$helper"; die "backup failed integrity_check: $check"; }
+	else
+		rm -f "$helper"
+		die "cannot back up: no deployed better-sqlite3 and no sqlite3 binary. Install sqlite3, or pass --skip-backup if you accept the risk."
+	fi
+	rm -f "$helper"
+
+	gzip -9 "$out"
+	# Opening the snapshot to verify it leaves WAL sidecars behind; the backup
+	# itself is complete without them, and they would otherwise accumulate.
+	rm -f "$out-wal" "$out-shm"
+	chown "$PROD_USER:$PROD_USER" "$out.gz"
+	chmod 600 "$out.gz"
+
+	# Keep the newest $KEEP_BACKUPS snapshots.
+	find "$PROD_DIR/backups" -maxdepth 1 -name 'wafflelist-*.db.gz' -printf '%T@ %p\n' |
+		sort -rn | tail -n "+$((KEEP_BACKUPS + 1))" | cut -d' ' -f2- |
+		while IFS= read -r old; do
+			log "pruning old backup $(basename "$old")"
+			rm -f "$old"
+		done
+}
+
+cmd_deploy_production() {
+	local sha='' tarball_name='' skip_backup=0
+	while [ $# -gt 0 ]; do
+		case $1 in
+		--sha) sha=${2:?}; shift 2 ;;
+		--tarball) tarball_name=${2:?}; shift 2 ;;
+		--skip-backup) skip_backup=1; shift ;;
+		*) die "unknown argument: $1" ;;
+		esac
+	done
+	[ -n "$sha" ] || die "--sha is required"
+	[ -n "$tarball_name" ] || die "--tarball is required"
+	validate_sha "$sha"
+
+	local tarball port previous
+	tarball=$(resolve_tarball "$tarball_name")
+	port=$(env_get "$CONF_DIR/production.env" PORT) ||
+		die "$CONF_DIR/production.env is missing; run deploy/install.sh first"
+	[ -n "$port" ] || die "PORT is not set in $CONF_DIR/production.env"
+
+	previous=$(readlink "$PROD_DIR/current" 2>/dev/null || true)
+
+	# Install first: unpacking and `npm ci` touch nothing that is live, and the
+	# backup below can then use the new release's better-sqlite3.
+	install_release "$PROD_DIR" "$PROD_USER" "$sha" "$tarball"
+	verify_release "$PROD_DIR" "$PROD_USER" "$PROD_DIR/releases/$RELEASE_NAME"
+
+	[ "$skip_backup" -eq 1 ] ||
+		backup_production_db "$PROD_DIR/releases/$RELEASE_NAME/node_modules"
+
+	swap_current "$PROD_DIR" "$PROD_USER" "$RELEASE_NAME"
+
+	log "restarting wafflelist.service"
+	systemctl restart wafflelist.service
+
+	if ! health_check "$port" "production"; then
+		warn "production failed its health check"
+		if [ -n "$previous" ] && [ -d "$PROD_DIR/$previous" ]; then
+			warn "rolling back to $previous"
+			ln -sfn "$previous" "$PROD_DIR/current.new"
+			mv -Tf "$PROD_DIR/current.new" "$PROD_DIR/current"
+			chown -h "$PROD_USER:$PROD_USER" "$PROD_DIR/current"
+			systemctl restart wafflelist.service
+			health_check "$port" "production (rolled back)" ||
+				warn "rollback is also unhealthy - check journalctl -u wafflelist"
+		else
+			warn "no previous release to roll back to"
+		fi
+		rm -f "$tarball"
+		die "deploy of $sha failed and was rolled back"
+	fi
+
+	prune_releases "$PROD_DIR"
+	rm -f "$tarball"
+	log "production now serving $sha"
+}
+
+# ------------------------------------------------------------------ previews
+
+preview_port() {
+	echo $((PREVIEW_PORT_BASE + $1))
+}
+
+write_preview_caddy_snippet() {
+	local pr=$1 domain=$2 port=$3 snippet="$CADDY_SNIPPET_DIR/pr-$1.caddy"
+	mkdir -p "$CADDY_SNIPPET_DIR"
+	cat >"$snippet" <<CADDY
+# Managed by wafflelist-ctl. Do not edit; changes are overwritten on deploy.
+pr-$pr.$domain {
+	encode zstd gzip
+	header X-Robots-Tag "noindex, nofollow"
+
+	# Optional gate for preview environments. Generate a hash with
+	# \`caddy hash-password\` and uncomment:
+	# basic_auth {
+	#     reviewer <bcrypt-hash>
+	# }
+
+	reverse_proxy 127.0.0.1:$port
+}
+CADDY
+	chmod 644 "$snippet"
+}
+
+reload_caddy() {
+	if ! systemctl is-enabled --quiet caddy.service 2>/dev/null &&
+		! systemctl is-active --quiet caddy.service 2>/dev/null; then
+		warn "caddy.service not found; skipping reload (configure your proxy manually)"
+		return 0
+	fi
+	if command -v caddy >/dev/null 2>&1; then
+		caddy validate --config /etc/caddy/Caddyfile >/dev/null ||
+			die "generated Caddy config is invalid; not reloading"
+	fi
+	log "reloading caddy"
+	systemctl reload caddy.service
+}
+
+cmd_deploy_preview() {
+	local pr='' sha='' tarball_name='' domain=''
+	while [ $# -gt 0 ]; do
+		case $1 in
+		--pr) pr=${2:?}; shift 2 ;;
+		--sha) sha=${2:?}; shift 2 ;;
+		--tarball) tarball_name=${2:?}; shift 2 ;;
+		--domain) domain=${2:?}; shift 2 ;;
+		*) die "unknown argument: $1" ;;
+		esac
+	done
+	[ -n "$pr" ] || die "--pr is required"
+	[ -n "$sha" ] || die "--sha is required"
+	[ -n "$tarball_name" ] || die "--tarball is required"
+	[ -n "$domain" ] || die "--domain is required"
+	validate_pr "$pr"
+	validate_sha "$sha"
+	validate_domain "$domain"
+
+	local tarball base_dir port
+	tarball=$(resolve_tarball "$tarball_name")
+	base_dir="$PREVIEWS_DIR/pr-$pr"
+	port=$(preview_port "$pr")
+
+	# Each preview gets its own tree, so its own data/wafflelist.db. Nothing
+	# here is ever seeded from production.
+	log "preparing preview pr-$pr (port $port)"
+	mkdir -p "$base_dir/releases" "$base_dir/data"
+	chown "$PREVIEW_USER:$PREVIEW_USER" "$base_dir" "$base_dir/releases" "$base_dir/data"
+	chmod 755 "$base_dir"
+	chmod 700 "$base_dir/data"
+
+	mkdir -p "$CONF_DIR/previews"
+	cat >"$CONF_DIR/previews/pr-$pr.env" <<ENV
+# Managed by wafflelist-ctl. Do not edit; changes are overwritten on deploy.
+NODE_ENV=production
+HOST=127.0.0.1
+PORT=$port
+ORIGIN=https://pr-$pr.$domain
+ENV
+	chmod 644 "$CONF_DIR/previews/pr-$pr.env"
+
+	install_release "$base_dir" "$PREVIEW_USER" "$sha" "$tarball"
+	verify_release "$base_dir" "$PREVIEW_USER" "$base_dir/releases/$RELEASE_NAME"
+	swap_current "$base_dir" "$PREVIEW_USER" "$RELEASE_NAME"
+
+	write_preview_caddy_snippet "$pr" "$domain" "$port"
+	reload_caddy
+
+	log "starting wafflelist-preview@$pr.service"
+	systemctl enable "wafflelist-preview@$pr.service" >/dev/null 2>&1 || true
+	systemctl reset-failed "wafflelist-preview@$pr.service" >/dev/null 2>&1 || true
+	systemctl restart "wafflelist-preview@$pr.service"
+
+	if ! health_check "$port" "preview pr-$pr"; then
+		warn "preview pr-$pr failed its health check; recent logs:"
+		journalctl -u "wafflelist-preview@$pr.service" -n 40 --no-pager || true
+		rm -f "$tarball"
+		die "preview pr-$pr is unhealthy"
+	fi
+
+	prune_releases "$base_dir"
+	rm -f "$tarball"
+	log "preview available at https://pr-$pr.$domain"
+}
+
+cmd_teardown_preview() {
+	local pr=''
+	while [ $# -gt 0 ]; do
+		case $1 in
+		--pr) pr=${2:?}; shift 2 ;;
+		*) die "unknown argument: $1" ;;
+		esac
+	done
+	[ -n "$pr" ] || die "--pr is required"
+	validate_pr "$pr"
+
+	log "tearing down preview pr-$pr"
+	systemctl disable --now "wafflelist-preview@$pr.service" >/dev/null 2>&1 || true
+	systemctl reset-failed "wafflelist-preview@$pr.service" >/dev/null 2>&1 || true
+
+	rm -f "$CONF_DIR/previews/pr-$pr.env"
+	if [ -f "$CADDY_SNIPPET_DIR/pr-$pr.caddy" ]; then
+		rm -f "$CADDY_SNIPPET_DIR/pr-$pr.caddy"
+		reload_caddy
+	fi
+
+	# Guard against a surprising rm -rf if the layout ever changes.
+	local base_dir="$PREVIEWS_DIR/pr-$pr"
+	case $base_dir in
+	"$PREVIEWS_DIR"/pr-[0-9]*) rm -rf "$base_dir" ;;
+	*) die "refusing to remove unexpected path: $base_dir" ;;
+	esac
+
+	log "preview pr-$pr removed"
+}
+
+# Backstop for previews whose teardown event never arrived.
+cmd_gc() {
+	local stale=0
+	[ -d "$PREVIEWS_DIR" ] || return 0
+	while IFS= read -r dir; do
+		[ -n "$dir" ] || continue
+		local pr
+		pr=$(basename "$dir" | sed 's/^pr-//')
+		[[ $pr =~ ^[0-9]+$ ]] || continue
+		log "preview pr-$pr is older than $PREVIEW_MAX_AGE_DAYS days"
+		cmd_teardown_preview --pr "$pr"
+		stale=$((stale + 1))
+	done < <(find "$PREVIEWS_DIR" -mindepth 1 -maxdepth 1 -type d \
+		-name 'pr-*' -mtime "+$PREVIEW_MAX_AGE_DAYS" 2>/dev/null)
+
+	# Snippets and env files with no matching directory.
+	for snippet in "$CADDY_SNIPPET_DIR"/pr-*.caddy; do
+		[ -e "$snippet" ] || continue
+		local pr
+		pr=$(basename "$snippet" .caddy | sed 's/^pr-//')
+		if [ ! -d "$PREVIEWS_DIR/pr-$pr" ]; then
+			log "removing orphaned Caddy snippet for pr-$pr"
+			cmd_teardown_preview --pr "$pr"
+			stale=$((stale + 1))
+		fi
+	done
+
+	log "gc complete ($stale preview(s) removed)"
+}
+
+cmd_list() {
+	printf 'production: %s\n' "$(readlink "$PROD_DIR/current" 2>/dev/null || echo '(none)')"
+	printf '  service:  %s\n' "$(systemctl is-active wafflelist.service 2>/dev/null || true)"
+	printf '  port:     %s\n' "$(env_get "$CONF_DIR/production.env" PORT || echo '?')"
+	printf '  db:       %s\n' "$(du -h "$PROD_DIR/data/wafflelist.db" 2>/dev/null | cut -f1 || echo '(none)')"
+	printf '  backups:  %s\n' "$(find "$PROD_DIR/backups" -name '*.db.gz' 2>/dev/null | wc -l)"
+	echo
+	echo 'previews:'
+	local found=0
+	for dir in "$PREVIEWS_DIR"/pr-*; do
+		[ -d "$dir" ] || continue
+		found=1
+		local pr
+		pr=$(basename "$dir" | sed 's/^pr-//')
+		printf '  pr-%-5s port=%-6s state=%-10s release=%s\n' \
+			"$pr" "$(preview_port "$pr")" \
+			"$(systemctl is-active "wafflelist-preview@$pr.service" 2>/dev/null || true)" \
+			"$(readlink "$dir/current" 2>/dev/null || echo '(none)')"
+	done
+	[ "$found" -eq 1 ] || echo '  (none)'
+}
+
+usage() {
+	cat <<'USAGE'
+usage: wafflelist-ctl <command> [options]
+
+commands:
+  deploy-production --sha <sha> --tarball <name> [--skip-backup]
+  deploy-preview    --pr <n> --sha <sha> --tarball <name> --domain <domain>
+  teardown-preview  --pr <n>
+  backup            snapshot the production database
+  gc                remove stale previews and orphaned config
+  list              show what is currently deployed
+USAGE
+}
+
+main() {
+	local cmd=${1:-}
+	[ $# -gt 0 ] && shift || true
+	case $cmd in
+	deploy-production) require_root; cmd_deploy_production "$@" ;;
+	deploy-preview) require_root; cmd_deploy_preview "$@" ;;
+	teardown-preview) require_root; cmd_teardown_preview "$@" ;;
+	backup) require_root; backup_production_db ;;
+	gc) require_root; cmd_gc "$@" ;;
+	list) cmd_list ;;
+	'' | -h | --help | help) usage ;;
+	*) usage >&2; die "unknown command: $cmd" ;;
+	esac
+}
+
+main "$@"

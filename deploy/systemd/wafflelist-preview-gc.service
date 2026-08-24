@@ -1,0 +1,7 @@
+[Unit]
+Description=Remove stale Wafflelist PR previews
+Documentation=https://github.com/mxbi/wafflelist
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/wafflelist-ctl gc

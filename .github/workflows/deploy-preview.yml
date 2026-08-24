@@ -1,0 +1,153 @@
+name: Deploy PR preview
+
+# Previews are opt-in per PR: add the `preview` label. Only users who can label
+# a PR (write access) can therefore trigger a deploy, which is the gate that
+# keeps arbitrary PR code off the VPS.
+#
+# SECURITY MODEL
+# --------------
+# This workflow uses pull_request_target, so the workflow definition always
+# comes from the base branch and cannot be modified by the PR. The work is
+# split in two:
+#
+#   build   - checks out and runs UNTRUSTED PR code. It must never reference
+#             `secrets.*`, so there is nothing for that code to steal.
+#   deploy  - holds the SSH secrets but runs no PR code; it only ships the
+#             artifact produced by `build`.
+#
+# Do not merge these jobs, and do not add secrets to `build`.
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, labeled]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build PR head
+    if: contains(github.event.pull_request.labels.*.name, 'preview')
+    runs-on: ubuntu-latest
+    # No `secrets.*` anywhere in this job. See SECURITY MODEL above.
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Build release
+        id: build
+        uses: ./.github/actions/build-release
+        with:
+          sha: ${{ github.event.pull_request.head.sha }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: preview-release
+          path: ${{ steps.build.outputs.tarball }}
+          retention-days: 3
+          if-no-files-found: error
+
+  deploy:
+    name: Deploy preview
+    needs: build
+    runs-on: ubuntu-latest
+    environment: preview
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      PR: ${{ github.event.pull_request.number }}
+      SHA: ${{ github.event.pull_request.head.sha }}
+      PREVIEW_DOMAIN: ${{ vars.PREVIEW_DOMAIN }}
+    steps:
+      - name: Check preview domain is configured
+        run: |
+          if [ -z "${PREVIEW_DOMAIN:-}" ]; then
+            echo "Repository variable PREVIEW_DOMAIN is not set." >&2
+            echo "Set it to e.g. preview.wafflelist.mxbi.net" >&2
+            exit 1
+          fi
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: preview-release
+
+      - name: Configure SSH
+        env:
+          SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.VPS_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Upload and deploy
+        env:
+          HOST: ${{ secrets.VPS_HOST }}
+          USER: ${{ secrets.VPS_USER }}
+          SSH_PORT: ${{ vars.VPS_SSH_PORT || '22' }}
+        run: |
+          set -euo pipefail
+          tarball="release-${SHA:0:12}.tar.gz"
+          [ -f "$tarball" ] || { echo "artifact $tarball missing" >&2; exit 1; }
+
+          scp -i ~/.ssh/id_deploy -P "$SSH_PORT" -o IdentitiesOnly=yes \
+            "$tarball" "$USER@$HOST:/srv/wafflelist/incoming/$tarball"
+
+          # Each preview runs as a separate unix user in its own directory tree,
+          # so it gets a fresh, empty database and cannot reach production's.
+          ssh -i ~/.ssh/id_deploy -p "$SSH_PORT" -o IdentitiesOnly=yes \
+            "$USER@$HOST" \
+            "sudo /usr/local/bin/wafflelist-ctl deploy-preview \
+               --pr '$PR' --sha '$SHA' --tarball '$tarball' --domain '$PREVIEW_DOMAIN'"
+
+      - name: Comment preview URL
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          url="https://pr-${PR}.${PREVIEW_DOMAIN}"
+          marker="<!-- wafflelist-preview -->"
+
+          # Built with printf rather than a heredoc: an indented heredoc
+          # delimiter inside a YAML block scalar would not terminate.
+          body=$(printf '%s\n' \
+            "$marker" \
+            "### Preview deployed" \
+            "" \
+            "| | |" \
+            "|---|---|" \
+            "| URL | $url |" \
+            "| Commit | \`${SHA:0:12}\` |" \
+            "| Updated | $(date -u '+%Y-%m-%d %H:%M UTC') |" \
+            "" \
+            "This preview has its own **empty database**, isolated from production." \
+            "" \
+            "> [!WARNING]" \
+            "> Sign in with a **throwaway seed phrase**, never your real one." \
+            "> Preview code is unreviewed and runs in your browser, so it could" \
+            "> exfiltrate any seed phrase you type into it." \
+            "" \
+            "Remove the \`preview\` label or close the PR to tear this down.")
+
+          # Update the existing comment if there is one, so redeploys don't spam.
+          existing=$(gh api "repos/$REPO/issues/$PR/comments" --paginate \
+            --jq ".[] | select(.body | contains(\"$marker\")) | .id" | head -n1)
+
+          if [ -n "$existing" ]; then
+            gh api -X PATCH "repos/$REPO/issues/comments/$existing" -f body="$body" >/dev/null
+            echo "updated comment $existing"
+          else
+            gh api -X POST "repos/$REPO/issues/$PR/comments" -f body="$body" >/dev/null
+            echo "created preview comment"
+          fi

@@ -1,0 +1,93 @@
+name: Deploy production
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Ref or SHA to deploy (defaults to main).
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+# Never let two production deploys interleave. Deploys are not cancelled
+# mid-flight, since that could leave a half-swapped release.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build and deploy
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+
+      - name: Resolve commit
+        id: commit
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Build release
+        id: build
+        uses: ./.github/actions/build-release
+        with:
+          sha: ${{ steps.commit.outputs.sha }}
+
+      - name: Configure SSH
+        env:
+          SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.VPS_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Upload release to VPS
+        env:
+          HOST: ${{ secrets.VPS_HOST }}
+          USER: ${{ secrets.VPS_USER }}
+          PORT: ${{ vars.VPS_SSH_PORT || '22' }}
+          TARBALL: ${{ steps.build.outputs.tarball }}
+        run: |
+          set -euo pipefail
+          scp -i ~/.ssh/id_deploy -P "$PORT" -o IdentitiesOnly=yes \
+            "$TARBALL" "$USER@$HOST:/srv/wafflelist/incoming/$TARBALL"
+
+      - name: Deploy
+        env:
+          HOST: ${{ secrets.VPS_HOST }}
+          USER: ${{ secrets.VPS_USER }}
+          PORT: ${{ vars.VPS_SSH_PORT || '22' }}
+          TARBALL: ${{ steps.build.outputs.tarball }}
+          SHA: ${{ steps.commit.outputs.sha }}
+        run: |
+          set -euo pipefail
+          # wafflelist-ctl backs up the database, swaps the release symlink,
+          # restarts the service and rolls back automatically if the new
+          # release fails its health check.
+          ssh -i ~/.ssh/id_deploy -p "$PORT" -o IdentitiesOnly=yes \
+            "$USER@$HOST" \
+            "sudo /usr/local/bin/wafflelist-ctl deploy-production --sha '$SHA' --tarball '$TARBALL'"
+
+      - name: Verify public URL
+        if: vars.PRODUCTION_URL != ''
+        run: |
+          set -euo pipefail
+          for _ in $(seq 1 10); do
+            if curl -fsS --max-time 5 -o /dev/null "${{ vars.PRODUCTION_URL }}"; then
+              echo "${{ vars.PRODUCTION_URL }} is responding"
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "production URL did not respond" >&2
+          exit 1

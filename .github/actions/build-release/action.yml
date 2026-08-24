@@ -1,0 +1,57 @@
+name: Build release
+description: >-
+  Installs dependencies, builds the SvelteKit app and packages a deployable
+  release tarball (build output + manifests, no node_modules).
+
+inputs:
+  sha:
+    description: Commit SHA recorded in the release metadata.
+    required: true
+
+outputs:
+  tarball:
+    description: Path to the release tarball, relative to the workspace.
+    value: ${{ steps.package.outputs.tarball }}
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version-file: .nvmrc
+        cache: npm
+
+    - name: Install dependencies
+      shell: bash
+      run: npm ci
+
+    - name: Build
+      shell: bash
+      run: npm run build
+
+    - name: Package release
+      id: package
+      shell: bash
+      run: |
+        set -euo pipefail
+        sha='${{ inputs.sha }}'
+        short="${sha:0:12}"
+        staging="$(mktemp -d)"
+
+        # Only the build output and the manifests needed to install runtime
+        # deps on the VPS. better-sqlite3 is a native module and @sveltejs/kit
+        # stays external, so `npm ci --omit=dev` runs on the target host where
+        # the prebuilt binary matches its libc/ABI.
+        cp -r build "$staging/build"
+        cp package.json package-lock.json "$staging/"
+        {
+          echo "sha=$sha"
+          echo "built_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo "run=${{ github.run_id }}"
+        } > "$staging/RELEASE"
+
+        tarball="release-$short.tar.gz"
+        tar -czf "$tarball" -C "$staging" .
+        rm -rf "$staging"
+        echo "tarball=$tarball" >> "$GITHUB_OUTPUT"
+        ls -lh "$tarball"
