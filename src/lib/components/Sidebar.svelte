@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { lists, todos, createList, deleteList, searchQuery, counts, mobileView, selectedTodoId } from '$lib/stores/todos';
+	import { lists, createList, deleteList, searchQuery, counts, mobileView, selectedTodoId, moveList, moveTodoToList } from '$lib/stores/todos';
+	import { DRAG_TODO, DRAG_LIST } from '$lib/listColors';
 	import { page } from '$app/stores';
 	import { Inbox, Star, Calendar, List as ListIcon, AlarmClockOff, Settings, Plus } from 'lucide-svelte';
 	import type { ComponentType } from 'svelte';
@@ -57,6 +58,72 @@
 		if (e.key === 'Escape') { showNewListInput = false; newListName = ''; }
 	}
 
+	// --- Drag and drop: todos onto lists, and reordering lists ---
+	// dropTarget is a list id, or 'inbox' for the Inbox smart view
+	let dropTarget = $state<string | null>(null);
+	let listDropPosition = $state<'above' | 'below' | null>(null);
+	let draggedListId = $state<string | null>(null);
+
+	function hasType(e: DragEvent, type: string): boolean {
+		return !!e.dataTransfer && Array.from(e.dataTransfer.types).includes(type);
+	}
+
+	function handleListDragStart(e: DragEvent, id: string) {
+		draggedListId = id;
+		if (e.dataTransfer) {
+			e.dataTransfer.setData(DRAG_LIST, id);
+			e.dataTransfer.effectAllowed = 'move';
+		}
+	}
+
+	function handleListDragEnd() {
+		draggedListId = null;
+		dropTarget = null;
+		listDropPosition = null;
+	}
+
+	function handleNavDragOver(e: DragEvent, target: string) {
+		if (hasType(e, DRAG_TODO)) {
+			e.preventDefault();
+			if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+			dropTarget = target;
+			listDropPosition = null;
+		} else if (hasType(e, DRAG_LIST) && target !== 'inbox' && draggedListId && draggedListId !== target) {
+			e.preventDefault();
+			if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+			const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+			dropTarget = target;
+			listDropPosition = e.clientY < rect.top + rect.height / 2 ? 'above' : 'below';
+		}
+	}
+
+	function handleNavDragLeave(e: DragEvent, target: string) {
+		// Ignore leave events fired when moving between child elements
+		const related = e.relatedTarget as Node | null;
+		if (related && (e.currentTarget as HTMLElement).contains(related)) return;
+		if (dropTarget === target) {
+			dropTarget = null;
+			listDropPosition = null;
+		}
+	}
+
+	function handleNavDrop(e: DragEvent, target: string) {
+		e.preventDefault();
+		const position = listDropPosition;
+		dropTarget = null;
+		listDropPosition = null;
+		const todoId = e.dataTransfer?.getData(DRAG_TODO);
+		if (todoId) {
+			moveTodoToList(todoId, target === 'inbox' ? null : target);
+			return;
+		}
+		const listId = e.dataTransfer?.getData(DRAG_LIST) || draggedListId;
+		if (listId && target !== 'inbox' && position) {
+			moveList(listId, target, position);
+		}
+		draggedListId = null;
+	}
+
 	async function handleDeleteList(e: MouseEvent, id: string) {
 		e.preventDefault();
 		e.stopPropagation();
@@ -81,7 +148,18 @@
 
 	<nav class="smart-views">
 		{#each smartViews as view}
-			<a href={view.path} class="nav-item" class:active={isActive(view.path)} onclick={() => { selectedTodoId.set(null); mobileView.set('list'); }}>
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
+			<a
+				href={view.path}
+				class="nav-item"
+				class:active={isActive(view.path)}
+				class:drop-target={view.path === '/inbox' && dropTarget === 'inbox'}
+				onclick={() => { selectedTodoId.set(null); mobileView.set('list'); }}
+				draggable="false"
+				ondragover={view.path === '/inbox' ? (e) => handleNavDragOver(e, 'inbox') : undefined}
+				ondragleave={view.path === '/inbox' ? (e) => handleNavDragLeave(e, 'inbox') : undefined}
+				ondrop={view.path === '/inbox' ? (e) => handleNavDrop(e, 'inbox') : undefined}
+			>
 				<span class="nav-icon"><svelte:component this={iconMap[view.icon]} size={16} strokeWidth={2} /></span>
 				<span class="nav-label">{view.label}</span>
 				{#if getViewCount(view.path) > 0}
@@ -99,7 +177,22 @@
 
 	<nav class="lists">
 		{#each $lists as list (list.id)}
-			<a href="/list/{list.id}" class="nav-item" class:active={isActive(`/list/${list.id}`)} onclick={() => { selectedTodoId.set(null); mobileView.set('list'); }}>
+			<a
+				href="/list/{list.id}"
+				class="nav-item"
+				class:active={isActive(`/list/${list.id}`)}
+				class:drop-target={dropTarget === list.id && !listDropPosition}
+				class:drop-above={dropTarget === list.id && listDropPosition === 'above'}
+				class:drop-below={dropTarget === list.id && listDropPosition === 'below'}
+				class:dragging={draggedListId === list.id}
+				onclick={() => { selectedTodoId.set(null); mobileView.set('list'); }}
+				draggable="true"
+				ondragstart={(e) => handleListDragStart(e, list.id)}
+				ondragend={handleListDragEnd}
+				ondragover={(e) => handleNavDragOver(e, list.id)}
+				ondragleave={(e) => handleNavDragLeave(e, list.id)}
+				ondrop={(e) => handleNavDrop(e, list.id)}
+			>
 				<span class="nav-icon">{#if list.icon}{list.icon}{:else}<ListIcon size={16} strokeWidth={2} />{/if}</span>
 				<span class="list-name">{list.name}</span>
 				{#if ($counts.lists[list.id] ?? 0) > 0}
@@ -198,6 +291,14 @@
 	}
 	.nav-item:hover { background: var(--color-bg-hover); color: var(--color-text); }
 	.nav-item.active { background: var(--color-primary-light); color: var(--color-primary); font-weight: 600; }
+	.nav-item.drop-target {
+		background: var(--color-primary-light);
+		color: var(--color-primary);
+		box-shadow: inset 0 0 0 2px var(--color-primary);
+	}
+	.nav-item.drop-above { box-shadow: inset 0 2px 0 var(--color-primary); }
+	.nav-item.drop-below { box-shadow: inset 0 -2px 0 var(--color-primary); }
+	.nav-item.dragging { opacity: 0.4; }
 	.nav-icon { width: 20px; text-align: center; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
 	.nav-label { flex: 1; }
 	.count {

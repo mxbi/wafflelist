@@ -4,7 +4,7 @@
 	import Login from '$lib/components/Login.svelte';
 	import { loadTodosFromCache, loadListsFromCache, setupSync, mobileView, selectedTodoId } from '$lib/stores/todos';
 	import { authState, tryRestore } from '$lib/stores/auth';
-	import { background } from '$lib/stores/settings';
+	import { background, backgroundStyle, backgroundColor } from '$lib/stores/settings';
 	import { browser } from '$app/environment';
 	import { onMount } from 'svelte';
 	import { get } from 'svelte/store';
@@ -15,11 +15,7 @@
 	}
 	let { children }: Props = $props();
 
-	const bgStyle = $derived(
-		$background.startsWith('linear-gradient')
-			? `background: ${$background}; background-size: cover;`
-			: `background: ${$background};`
-	);
+	const bgStyle = $derived(backgroundStyle($background));
 
 	let ready = $state(false);
 
@@ -42,10 +38,7 @@
 
 		const view = $mobileView;
 		if (view === 'list') {
-			// Extract first color from background (solid or gradient)
-			const bg = $background;
-			const match = bg.match(/#[0-9a-fA-F]{6}/);
-			meta.setAttribute('content', match ? match[0] : '#2B579A');
+			meta.setAttribute('content', backgroundColor($background));
 		} else {
 			meta.setAttribute('content', themeColorMap[view] ?? '#2B579A');
 		}

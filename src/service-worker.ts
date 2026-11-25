@@ -11,7 +11,8 @@ const CACHE_NAME = `wafflelist-${version}`;
 const OFFLINE_KEY = '__offline_shell__';
 
 // Pre-cache all build assets (JS/CSS) and static files on install
-const PRECACHE = [...build, ...files];
+// Full-size theme images are large, so they're cached on first use instead
+const PRECACHE = [...build, ...files.filter((f) => !/^\/themes\/(?!.*-thumb\.)/.test(f))];
 
 self.addEventListener('install', (event) => {
 	event.waitUntil(

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { background, presetColors, presetGradients } from '$lib/stores/settings';
+	import { background, presetColors, presetGradients, imageThemes, imageThemeValue } from '$lib/stores/settings';
 	import { lists, todos, resetSync, syncStatus } from '$lib/stores/todos';
 	import { logout } from '$lib/stores/auth';
 	import { Download, Lock, RefreshCw } from 'lucide-svelte';
@@ -80,6 +80,19 @@
 							style="background: {grad}"
 							onclick={() => background.set(grad)}
 							aria-label="Set background gradient"
+						></button>
+					{/each}
+				</div>
+				<div class="subsection-label">Images</div>
+				<div class="swatches">
+					{#each imageThemes as theme}
+						<button
+							class="swatch image-swatch"
+							class:active={$background === imageThemeValue(theme)}
+							style="background: {theme.color} url('{theme.thumb}') center / cover no-repeat"
+							onclick={() => background.set(imageThemeValue(theme))}
+							aria-label="Set background image: {theme.name}"
+							title={theme.name}
 						></button>
 					{/each}
 				</div>
@@ -198,6 +211,7 @@
 	}
 	.swatch:hover { transform: scale(1.1); }
 	.swatch.active { border-color: var(--color-text); }
+	.image-swatch { width: 48px; }
 
 	.divider {
 		height: 1px;

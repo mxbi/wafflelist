@@ -10,8 +10,9 @@
 		filteredTodos?: Todo[];
 		onrename?: (name: string) => void;
 		reorderable?: boolean;
+		showListBadges?: boolean;
 	}
-	let { title, listId = null, filteredTodos, onrename, reorderable = false }: Props = $props();
+	let { title, listId = null, filteredTodos, onrename, reorderable = false, showListBadges = false }: Props = $props();
 
 	let editing = $state(false);
 	let editName = $state('');
@@ -62,10 +63,6 @@
 	function handleDragStart(e: DragEvent, todoId: string) {
 		if (!reorderable) return;
 		draggedId = todoId;
-		if (e.dataTransfer) {
-			e.dataTransfer.effectAllowed = 'move';
-			e.dataTransfer.setData('text/plain', todoId);
-		}
 	}
 
 	function handleDragOver(e: DragEvent, todoId: string) {
@@ -362,7 +359,7 @@
 				{#each activeTodos as todo (todo.id)}
 					<TodoItem
 						{todo}
-						draggable={reorderable}
+						showListBadge={showListBadges}
 						ondragstart={(e) => handleDragStart(e, todo.id)}
 						ondragover={(e) => handleDragOver(e, todo.id)}
 						ondragleave={handleDragLeave}
@@ -388,7 +385,7 @@
 			{#if showCompleted}
 				<div class="items completed-items">
 					{#each completedTodos as todo (todo.id)}
-						<TodoItem {todo} />
+						<TodoItem {todo} showListBadge={showListBadges} />
 					{/each}
 				</div>
 			{/if}
