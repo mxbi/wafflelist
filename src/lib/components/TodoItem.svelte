@@ -14,8 +14,9 @@
 		ondragend?: () => void;
 		dragOverPosition?: 'above' | 'below' | null;
 		showListBadge?: boolean;
+		dragging?: boolean;
 	}
-	let { todo, ondragstart, ondragover, ondragleave, ondrop, ondragend, dragOverPosition = null, showListBadge = false }: Props = $props();
+	let { todo, ondragstart, ondragover, ondragleave, ondrop, ondragend, dragOverPosition = null, showListBadge = false, dragging = false }: Props = $props();
 
 	const badgeList = $derived(showListBadge && todo.list_id ? $lists.find((l) => l.id === todo.list_id) : undefined);
 	const badgeColor = $derived(badgeList ? listColor(badgeList.id) : null);
@@ -97,6 +98,8 @@
 	class:selected={isSelected}
 	class:drag-over-above={dragOverPosition === 'above'}
 	class:drag-over-below={dragOverPosition === 'below'}
+	class:dragging
+	data-todo-id={todo.id}
 	onclick={selectTodo}
 	oncontextmenu={handleContextMenu}
 	draggable={editing ? undefined : 'true'}
@@ -191,6 +194,14 @@
 	}
 	.todo-item[draggable="true"]:active {
 		cursor: grabbing;
+	}
+	.todo-item[draggable="true"] {
+		-webkit-user-select: none;
+		user-select: none;
+		-webkit-touch-callout: none;
+	}
+	.todo-item.dragging {
+		opacity: 0.45;
 	}
 
 	.checkbox {
