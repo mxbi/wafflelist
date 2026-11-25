@@ -2,6 +2,7 @@
 	import { todos, searchQuery, mobileView, selectedTodoId, updateTodo } from '$lib/stores/todos';
 	import TodoItem from './TodoItem.svelte';
 	import AddTodo from './AddTodo.svelte';
+	import { autofocus } from '$lib/actions';
 	import type { Todo } from '$lib/types';
 
 	interface Props {
@@ -317,13 +318,12 @@
 	<div class="list-header">
 		<button class="mobile-back" onclick={() => mobileView.set('sidebar')}>&larr;</button>
 		{#if editing}
-			<!-- svelte-ignore a11y_autofocus -->
 			<input
 				class="title-edit"
 				bind:value={editName}
 				onblur={saveEdit}
 				onkeydown={(e) => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') editing = false; }}
-				autofocus
+				use:autofocus
 			/>
 		{:else}
 			<!-- svelte-ignore a11y_no_static_element_interactions -->

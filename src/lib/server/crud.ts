@@ -50,7 +50,7 @@ export function update(table: Table) {
 		const userId = await verifyRequest(request);
 		const body = await request.json();
 
-		const existing = db.prepare(`SELECT id, updated_at FROM ${table} WHERE id = ? AND user_id = ? AND encrypted_blob IS NOT NULL`).get(params.id, userId) as { id: string; updated_at: number } | undefined;
+		const existing = db.prepare(`SELECT id, encrypted_blob, updated_at FROM ${table} WHERE id = ? AND user_id = ? AND encrypted_blob IS NOT NULL`).get(params.id, userId) as { id: string; encrypted_blob: string; updated_at: number } | undefined;
 		if (!existing) throw error(404, notFoundMsg);
 		if (body.encrypted_blob === undefined) throw error(400, 'No fields to update');
 		validateBlob(body.encrypted_blob);

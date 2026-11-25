@@ -103,8 +103,8 @@
 			</div>
 
 			<div class="detail-section">
-				<label class="section-label">List</label>
-				<select class="field-input" bind:value={editListId} onchange={save}>
+				<label class="section-label" for="detail-list">List</label>
+				<select id="detail-list" class="field-input" bind:value={editListId} onchange={save}>
 					<option value={null}>Inbox (no list)</option>
 					{#each $lists as list (list.id)}
 						<option value={list.id}>{list.icon || '▪'} {list.name}</option>
@@ -113,7 +113,7 @@
 			</div>
 
 			<div class="detail-section">
-				<label class="section-label">Due Date</label>
+				<span class="section-label" id="detail-due-label">Due Date</span>
 				<div class="quick-date-buttons">
 					<button class="quick-date-btn" onclick={() => { editDueDate = daysFromNow(0); save(); }}>Today</button>
 					<button class="quick-date-btn" onclick={() => { editDueDate = daysFromNow(1); save(); }}>Tomorrow</button>
@@ -121,17 +121,18 @@
 					<button class="quick-date-btn" onclick={() => { editDueDate = daysFromNow(3); save(); }}>{dayLabel(3)}</button>
 					<button class="quick-date-btn quick-date-clear" onclick={() => { editDueDate = ''; save(); }}>&times;</button>
 				</div>
-				<input class="field-input" type="date" bind:value={editDueDate} onchange={save} />
+				<input class="field-input" type="date" aria-labelledby="detail-due-label" bind:value={editDueDate} onchange={save} />
 			</div>
 
 			<div class="detail-section">
-				<label class="section-label">Snooze Until</label>
-				<input class="field-input" type="date" bind:value={snoozeDate} onchange={save} />
+				<label class="section-label" for="detail-snooze">Snooze Until</label>
+				<input id="detail-snooze" class="field-input" type="date" bind:value={snoozeDate} onchange={save} />
 			</div>
 
 			<div class="detail-section">
-				<label class="section-label">Notes</label>
+				<label class="section-label" for="detail-notes">Notes</label>
 				<textarea
+					id="detail-notes"
 					class="notes-input"
 					bind:value={editNotes}
 					onblur={save}

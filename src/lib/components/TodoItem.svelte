@@ -4,6 +4,7 @@
 	import { formatRelativeDate } from '$lib/dates';
 	import { StickyNote } from 'lucide-svelte';
 	import type { Todo } from '$lib/types';
+	import { autofocus } from '$lib/actions';
 
 	interface Props {
 		todo: Todo;
@@ -72,6 +73,15 @@
 		}
 	}
 
+	function handleKeydown(e: KeyboardEvent) {
+		// Only react when the row itself is focused, not the inputs/buttons inside it
+		if (e.target !== e.currentTarget) return;
+		if (e.key === 'Enter' || e.key === ' ') {
+			e.preventDefault();
+			selectTodo();
+		}
+	}
+
 	function handleContextMenu(e: MouseEvent) {
 		e.preventDefault();
 		showContextMenu = !showContextMenu;
@@ -91,7 +101,6 @@
 	}
 </script>
 
-<!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
 	class="todo-item"
 	class:completed={!!todo.completed_at}
@@ -100,7 +109,11 @@
 	class:drag-over-below={dragOverPosition === 'below'}
 	class:dragging
 	data-todo-id={todo.id}
+	role="button"
+	tabindex="0"
+	aria-pressed={isSelected}
 	onclick={selectTodo}
+	onkeydown={handleKeydown}
 	oncontextmenu={handleContextMenu}
 	draggable={editing ? undefined : 'true'}
 	ondragstart={handleDragStart}
@@ -119,13 +132,12 @@
 
 	<div class="todo-content">
 		{#if editing}
-			<!-- svelte-ignore a11y_autofocus -->
 			<input
 				class="edit-input"
 				bind:value={editTitle}
 				onblur={saveEdit}
 				onkeydown={editKeydown}
-				autofocus
+				use:autofocus
 			/>
 		{:else}
 			{#if badgeList && badgeColor}
@@ -152,8 +164,8 @@
 		<!-- svelte-ignore a11y_click_events_have_key_events -->
 	<div class="context-menu" onclick={(e) => e.stopPropagation()}>
 			<div class="menu-item">
-				<label>Snooze until:</label>
-				<input type="date" bind:value={snoozeDate} />
+				<label for="snooze-{todo.id}">Snooze until:</label>
+				<input id="snooze-{todo.id}" type="date" bind:value={snoozeDate} />
 				<button onclick={handleSnooze} disabled={!snoozeDate}>Snooze</button>
 			</div>
 			<button class="menu-item" onclick={() => { showContextMenu = false; selectTodo(); }}>
@@ -180,6 +192,8 @@
 	}
 	.todo-item:hover { background: #f8f9fa; }
 	.todo-item.selected { background: var(--color-primary-light); }
+	.todo-item:focus { outline: none; }
+	.todo-item:focus-visible { outline: 2px solid var(--color-primary); outline-offset: -2px; }
 	.todo-item.drag-over-above {
 		border-top: 2px solid var(--color-primary);
 		padding-top: 8px;
