@@ -3,16 +3,12 @@
 	import { DRAG_TODO, DRAG_LIST } from '$lib/listColors';
 	import { page } from '$app/stores';
 	import { Inbox, Star, Calendar, List as ListIcon, AlarmClockOff, Settings, Plus } from 'lucide-svelte';
-	import type { ComponentType } from 'svelte';
 	import SettingsModal from './SettingsModal.svelte';
 	import SyncIndicator from './SyncIndicator.svelte';
 	import UpdatePrompt from './UpdatePrompt.svelte';
+	import { autofocus } from '$lib/actions';
 
 	let showSettings = $state(false);
-
-	const iconMap: Record<string, ComponentType> = {
-		Inbox, Star, Calendar, List: ListIcon, AlarmClockOff
-	};
 
 	const viewCountKey: Record<string, string> = {
 		'/inbox': 'inbox',
@@ -34,11 +30,11 @@
 	let showNewListInput = $state(false);
 
 	const smartViews = [
-		{ path: '/inbox', label: 'Inbox', icon: 'Inbox' },
-		{ path: '/today', label: 'Today', icon: 'Star' },
-		{ path: '/week', label: 'Week', icon: 'Calendar' },
-		{ path: '/all', label: 'All', icon: 'List' },
-		{ path: '/snoozed', label: 'Snoozed', icon: 'AlarmClockOff' }
+		{ path: '/inbox', label: 'Inbox', icon: Inbox },
+		{ path: '/today', label: 'Today', icon: Star },
+		{ path: '/week', label: 'Week', icon: Calendar },
+		{ path: '/all', label: 'All', icon: ListIcon },
+		{ path: '/snoozed', label: 'Snoozed', icon: AlarmClockOff }
 	];
 
 	function isActive(path: string): boolean {
@@ -148,7 +144,6 @@
 
 	<nav class="smart-views">
 		{#each smartViews as view}
-			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			<a
 				href={view.path}
 				class="nav-item"
@@ -160,7 +155,7 @@
 				ondragleave={view.path === '/inbox' ? (e) => handleNavDragLeave(e, 'inbox') : undefined}
 				ondrop={view.path === '/inbox' ? (e) => handleNavDrop(e, 'inbox') : undefined}
 			>
-				<span class="nav-icon"><svelte:component this={iconMap[view.icon]} size={16} strokeWidth={2} /></span>
+				<span class="nav-icon"><view.icon size={16} strokeWidth={2} /></span>
 				<span class="nav-label">{view.label}</span>
 				{#if getViewCount(view.path) > 0}
 					<span class="count">{getViewCount(view.path)}</span>
@@ -210,7 +205,7 @@
 				placeholder="List name..."
 				bind:value={newListName}
 				onkeydown={handleKeydown}
-				autofocus
+				use:autofocus
 			/>
 		</div>
 	{:else}

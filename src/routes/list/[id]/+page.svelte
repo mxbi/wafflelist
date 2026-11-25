@@ -4,7 +4,7 @@
 	import { filterTodos } from '$lib/filters';
 	import { page } from '$app/stores';
 
-	const listId = $derived($page.params.id);
+	const listId = $derived($page.params.id ?? '');
 	const currentList = $derived($lists.find((l) => l.id === listId));
 	const listName = $derived(currentList?.name ?? 'List');
 	const filtered = $derived(filterTodos($todos, 'list', listId));
