@@ -79,6 +79,46 @@ async function decryptList(key: CryptoKey, row: EncryptedList): Promise<List> {
 	} as List;
 }
 
+function sortLists(l: List[]): List[] {
+	return [...l].sort((a, b) => a.sort_order - b.sort_order);
+}
+
+/** Move a list to sit before/after another list in the sidebar order. */
+export async function moveList(id: string, targetId: string, position: 'above' | 'below') {
+	if (id === targetId) return;
+	const items = get(lists).filter(l => l.id !== id);
+	const targetIdx = items.findIndex(l => l.id === targetId);
+	if (targetIdx === -1) return;
+	let newOrder: number;
+	if (position === 'above') {
+		const prev = targetIdx > 0 ? items[targetIdx - 1].sort_order : items[targetIdx].sort_order - 2;
+		newOrder = (prev + items[targetIdx].sort_order) / 2;
+	} else {
+		const next = targetIdx < items.length - 1 ? items[targetIdx + 1].sort_order : items[targetIdx].sort_order + 2;
+		newOrder = (items[targetIdx].sort_order + next) / 2;
+	}
+	const clashes = items.some(l => l.sort_order === newOrder);
+	if (!clashes) {
+		await updateList(id, { sort_order: newOrder });
+		return;
+	}
+	// Sort orders have collided (e.g. legacy duplicates) — renumber everything
+	const moved = get(lists).find(l => l.id === id);
+	if (!moved) return;
+	const reordered = [...items];
+	reordered.splice(position === 'above' ? targetIdx : targetIdx + 1, 0, moved);
+	for (let i = 0; i < reordered.length; i++) {
+		if (reordered[i].sort_order !== i) await updateList(reordered[i].id, { sort_order: i });
+	}
+}
+
+/** Move a todo into a list (or the Inbox when listId is null). */
+export async function moveTodoToList(todoId: string, listId: string | null) {
+	const current = get(todos).find(t => t.id === todoId);
+	if (!current || current.list_id === listId) return;
+	await updateTodo(todoId, { list_id: listId });
+}
+
 // --- Cache-first loading ---
 
 export async function loadTodosFromCache() {
@@ -460,7 +500,7 @@ export async function updateList(id: string, fields: Partial<List>) {
 	const now = Date.now();
 
 	// Optimistic update
-	lists.update(l => l.map(list => list.id === id ? updated : list));
+	lists.update(l => sortLists(l.map(list => list.id === id ? updated : list)));
 
 	// Cache
 	await cacheRows('lists', [{ id, encrypted_blob, updated_at: now }]);
@@ -579,7 +619,7 @@ export function setupSync() {
 					await cacheRows('todos', [data.todo]);
 				} else if (data.type === 'list_updated' && data.list) {
 					const decrypted = await decryptList(encryptionKey, data.list);
-					lists.update(l => l.map(list => list.id === decrypted.id ? decrypted : list));
+					lists.update(l => sortLists(l.map(list => list.id === decrypted.id ? decrypted : list)));
 					await cacheRows('lists', [data.list]);
 				} else if (data.type === 'list_deleted') {
 					lists.update(l => l.filter(list => list.id !== data.id));
@@ -588,7 +628,7 @@ export function setupSync() {
 					const decrypted = await decryptList(encryptionKey, data.list);
 					lists.update(l => {
 						if (l.some(list => list.id === decrypted.id)) return l;
-						return [...l, decrypted];
+						return sortLists([...l, decrypted]);
 					});
 					await cacheRows('lists', [data.list]);
 				}

@@ -13,4 +13,4 @@
 	const filtered = $derived(filterTodos($todos, view));
 </script>
 
-<TodoList {title} filteredTodos={filtered} {reorderable} />
+<TodoList {title} filteredTodos={filtered} {reorderable} showListBadges={view !== 'inbox'} />

@@ -1,20 +1,34 @@
 <script lang="ts">
-	import { updateTodo, deleteTodo, selectedTodoId, mobileView } from '$lib/stores/todos';
+	import { updateTodo, deleteTodo, selectedTodoId, mobileView, lists } from '$lib/stores/todos';
+	import { listColor, DRAG_TODO } from '$lib/listColors';
 	import { formatRelativeDate } from '$lib/dates';
 	import { StickyNote } from 'lucide-svelte';
 	import type { Todo } from '$lib/types';
 
 	interface Props {
 		todo: Todo;
-		draggable?: boolean;
 		ondragstart?: (e: DragEvent) => void;
 		ondragover?: (e: DragEvent) => void;
 		ondragleave?: () => void;
 		ondrop?: (e: DragEvent) => void;
 		ondragend?: () => void;
 		dragOverPosition?: 'above' | 'below' | null;
+		showListBadge?: boolean;
 	}
-	let { todo, draggable = false, ondragstart, ondragover, ondragleave, ondrop, ondragend, dragOverPosition = null }: Props = $props();
+	let { todo, ondragstart, ondragover, ondragleave, ondrop, ondragend, dragOverPosition = null, showListBadge = false }: Props = $props();
+
+	const badgeList = $derived(showListBadge && todo.list_id ? $lists.find((l) => l.id === todo.list_id) : undefined);
+	const badgeColor = $derived(badgeList ? listColor(badgeList.id) : null);
+
+	function handleDragStart(e: DragEvent) {
+		if (e.dataTransfer) {
+			// Lets the todo be dropped onto a list in the sidebar
+			e.dataTransfer.setData(DRAG_TODO, todo.id);
+			e.dataTransfer.setData('text/plain', todo.title);
+			e.dataTransfer.effectAllowed = 'move';
+		}
+		ondragstart?.(e);
+	}
 
 	let editing = $state(false);
 	let editTitle = $state('');
@@ -85,8 +99,8 @@
 	class:drag-over-below={dragOverPosition === 'below'}
 	onclick={selectTodo}
 	oncontextmenu={handleContextMenu}
-	draggable={draggable ? 'true' : undefined}
-	{ondragstart}
+	draggable={editing ? undefined : 'true'}
+	ondragstart={handleDragStart}
 	{ondragover}
 	{ondragleave}
 	{ondrop}
@@ -111,6 +125,9 @@
 				autofocus
 			/>
 		{:else}
+			{#if badgeList && badgeColor}
+				<span class="list-badge" style:background={badgeColor.bg} style:color={badgeColor.fg} title="List: {badgeList.name}">{badgeList.name}</span>
+			{/if}
 			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			<span class="title" ondblclick={startEdit}>{todo.title}</span>
 		{/if}
@@ -196,6 +213,19 @@
 		font-size: 0.95rem;
 		color: var(--color-text);
 	}
+	.list-badge {
+		flex-shrink: 0;
+		max-width: 40%;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		font-size: 0.7rem;
+		font-weight: 600;
+		line-height: 1;
+		padding: 3px 7px;
+		border-radius: 10px;
+	}
+	.todo-item.completed .list-badge { opacity: 0.6; }
 	.has-notes { color: var(--color-text-muted); display: flex; align-items: center; }
 
 	.edit-input {

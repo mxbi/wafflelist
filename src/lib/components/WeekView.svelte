@@ -60,7 +60,7 @@
 			<div class="date-group">
 				<div class="date-badge">{group.label}</div>
 				{#each group.todos as todo (todo.id)}
-					<TodoItem {todo} />
+					<TodoItem {todo} showListBadge />
 				{/each}
 			</div>
 		{/each}
