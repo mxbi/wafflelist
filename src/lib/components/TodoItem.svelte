@@ -219,11 +219,16 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		height: 18px;
 		font-size: 0.7rem;
 		font-weight: 600;
-		line-height: 1;
-		padding: 3px 7px;
-		border-radius: 10px;
+		line-height: 18px;
+		text-align: center;
+		padding: 0 6px;
+		border-radius: var(--radius-sm);
 	}
 	.todo-item.completed .list-badge { opacity: 0.6; }
 	.has-notes { color: var(--color-text-muted); display: flex; align-items: center; }
